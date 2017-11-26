@@ -14,7 +14,8 @@
             "never-prefix"
         ],
         "object-literal-sort-keys": false,
-        "max-line-length": [true, 150]
+        "max-line-length": [true, 150],
+        "max-classes-per-file": [true, 3]
     },
     "rulesDirectory": []
 }

@@ -1,14 +1,17 @@
 import { HandlerContext, logger } from "@atomist/automation-client";
-import { SimpleProjectEditor } from "@atomist/automation-client/operations/edit/projectEditor";
+import {
+    ProjectEditor, SimpleProjectEditor,
+    successfulEdit,
+} from "@atomist/automation-client/operations/edit/projectEditor";
 import { Project } from "@atomist/automation-client/project/Project";
 
-export function populateChangelog(nextVersion: string, releaseDate: string, commitSummaries: string[]): SimpleProjectEditor {
+export function populateChangelog(nextVersion: string, releaseDate: string, commitSummaries: string[]): ProjectEditor {
     return (p: Project, ctx: HandlerContext) =>
         p.findFile("CHANGELOG.md")
             .then(f => f.getContent()
                 .then(content => f.setContent(
                     modifyChangelogContent(nextVersion, releaseDate, commitSummaries, content))))
-            .then(() => p);
+            .then(() => successfulEdit(p, true));
 }
 
 const BoringCommitSummaries = ["lint", "Automatic de-linting"];
@@ -68,4 +71,16 @@ ${listify(changedCommits)}
 
 ${listify(fixedCommits)}`)
         .replace(new RegExp(`${oldVersion}\.\.\.HEAD`), `${nextVersion}...HEAD`);
+}
+
+export function getLastReleasedVersionFromChangelog(project: Project): Promise<string> {
+    const unreleasedLineRegex = /^\[Unreleased]: .*compare\/(.*)\.\.\.HEAD/m;
+
+    return project.findFile("CHANGELOG.md").then(f => f.getContent()).then(content => {
+        const unreleasedLineMatch = unreleasedLineRegex.exec(content);
+        if (!unreleasedLineMatch) {
+            throw new Error("Couldn't determine prior version");
+        }
+        return unreleasedLineMatch[1];
+    });
 }

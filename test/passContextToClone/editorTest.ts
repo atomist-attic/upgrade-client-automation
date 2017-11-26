@@ -17,7 +17,6 @@
 import "mocha";
 import * as assert from "power-assert";
 
-
 describe("editor to pass the context into the cloned method", () => {
      it("sends a dummy context into tests, with just enough populated");
 

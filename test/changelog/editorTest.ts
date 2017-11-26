@@ -1,6 +1,6 @@
+import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import "mocha";
 import * as assert from "power-assert";
-import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import { modifyChangelogContent, populateChangelog } from "../../src/dependencyVersion/editor";
 
 const SampleChangeLog = `# Change Log
@@ -87,7 +87,7 @@ describe("putting stuff in the changelog", () => {
     it("updates it just right", done => {
         const result = populateChangelog(NextVersion, ReleaseDate, GitLog)(startingPoint(), undefined);
 
-        result.then(p => p.findFile("CHANGELOG.md"))
+        result.then(p => p.target.findFile("CHANGELOG.md"))
             .then(f => f.getContent())
             .then(updatedFile => {
                 assert(updatedFile === UpdatedChangeLog, updatedFile);
@@ -137,5 +137,5 @@ describe("manipulating the file contents", () => {
         const updatedFile = modifySample();
         assert(0 < updatedFile.indexOf("\n### Added\n\n-   add a happy method\n"));
 
-    })
+    });
 });
