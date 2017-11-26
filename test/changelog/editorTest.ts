@@ -44,6 +44,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 [0.3.6]: https://github.com/atomist/automation-client-ts/compare/0.3.5...0.3.6
 
+### Added
+
+-   add a happy method
+
+### Changed
+
+-   bunch of blah blah
+
+### Fixed
+
+-   fixes #23
+-   fix this broken thing
+
 ## [0.3.5][] - 2017-11-22
 
 [0.3.5]: https://github.com/atomist/automation-client-ts/compare/0.3.4...0.3.5
@@ -59,9 +72,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [0.3.4]: https://github.com/atomist/automation-client-ts/compare/0.3.3...0.3.4
 `;
 
-
 const NextVersion = "0.3.6";
 const ReleaseDate = "2017-12-31";
+const GitLog = ["bunch of blah blah", "more blah", "lint", "fixes #23", "fix this broken thing", "add a happy method"];
 
 describe("putting stuff in the changelog", () => {
 
@@ -70,7 +83,7 @@ describe("putting stuff in the changelog", () => {
     }
 
     it("updates it just right", done => {
-        const result = populateChangelog(NextVersion, ReleaseDate)(startingPoint(), undefined);
+        const result = populateChangelog(NextVersion, ReleaseDate, GitLog)(startingPoint(), undefined);
 
         result.then(p => p.findFile("CHANGELOG.md"))
             .then(f => f.getContent())
@@ -85,7 +98,7 @@ describe("putting stuff in the changelog", () => {
 describe("manipulating the file contents", () => {
 
     function modifySample() {
-        return modifyChangelogContent(NextVersion, ReleaseDate, SampleChangeLog);
+        return modifyChangelogContent(NextVersion, ReleaseDate, GitLog, SampleChangeLog);
     }
 
     it("updates the 'unreleased' section", () => {
@@ -99,8 +112,22 @@ describe("manipulating the file contents", () => {
     });
 
     it("includes a comparison link from old version to next", () => {
-
         const updatedFile = modifySample();
         assert(0 < updatedFile.indexOf("\n[0.3.6]: https://github.com/atomist/automation-client-ts/compare/0.3.5...0.3.6\n"));
     });
-})
+
+    it("puts the git log into 'changed' section", () => {
+        const updatedFile = modifySample();
+        assert(0 < updatedFile.indexOf("\n### Changed\n\n-   bunch of blah blah\n-   more blah\n"));
+    });
+
+    it("excludes 'lint' commits", () => {
+        const updatedFile = modifySample();
+        assert(-1 === updatedFile.indexOf("-   lint\n"));
+    });
+
+    it("puts 'fix' commits in a Fixed section", () => {
+        const updatedFile = modifySample();
+        assert(0 < updatedFile.indexOf("\n### Fixed\n\n-   fixes #23\n"));
+    });
+});
