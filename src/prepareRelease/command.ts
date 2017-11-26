@@ -16,7 +16,7 @@ import { editRepo } from "@atomist/automation-client/operations/support/editorUt
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
 import { isLocalProject } from "@atomist/automation-client/project/local/LocalProject";
 import { Project } from "@atomist/automation-client/project/Project";
-import { getLastReleasedVersionFromChangelog, populateChangelog } from "./editor";
+import { getLastReleasedVersionFromChangelog, populateChangelog } from "../dependencyVersion/editor";
 import { CachingDirectoryManager } from "@atomist/automation-client/spi/clone/CachingDirectoryManager";
 
 const SemanticVersionPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;

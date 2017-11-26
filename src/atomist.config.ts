@@ -16,7 +16,7 @@
 
 import { Configuration } from "@atomist/automation-client/configuration";
 import * as appRoot from "app-root-path";
-import { BeginReleaseHandler } from "./dependencyVersion/command";
+import { BeginReleaseHandler } from "./prepareRelease/command";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
