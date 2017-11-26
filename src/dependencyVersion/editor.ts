@@ -20,6 +20,10 @@ export function modifyChangelogContent(nextVersion: string, releaseDate: string,
     const oldVersion = unreleasedLineMatch[1];
 
     return oldContent
-        .replace(unreleasedLineRegex, `$&\n\n## [${nextVersion}][] - ${releaseDate} `)
+        .replace(unreleasedLineRegex, `$&
+
+## [${nextVersion}][] - ${releaseDate}
+
+[${nextVersion}]: https://github.com/atomist/automation-client-ts/compare/${oldVersion}...${nextVersion}`)
         .replace(new RegExp(`${oldVersion}\.\.\.HEAD`), `${nextVersion}...HEAD`);
 }

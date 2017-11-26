@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.3.6][] - 2017-12-31
 
+[0.3.6]: https://github.com/atomist/automation-client-ts/compare/0.3.5...0.3.6
+
 ## [0.3.5][] - 2017-11-22
 
 [0.3.5]: https://github.com/atomist/automation-client-ts/compare/0.3.4...0.3.5
@@ -94,5 +96,11 @@ describe("manipulating the file contents", () => {
     it("Adds a section", () => {
         const updatedFile = modifySample();
         assert(0 < updatedFile.indexOf("\n## [0.3.6][] - 2017-12-31\n"));
+    });
+
+    it("includes a comparison link from old version to next", () => {
+
+        const updatedFile = modifySample();
+        assert(0 < updatedFile.indexOf("\n[0.3.6]: https://github.com/atomist/automation-client-ts/compare/0.3.5...0.3.6\n"));
     });
 })
