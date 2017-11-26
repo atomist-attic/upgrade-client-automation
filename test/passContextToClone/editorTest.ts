@@ -17,49 +17,11 @@
 import "mocha";
 import * as assert from "power-assert";
 
-import { HandlerContext } from "@atomist/automation-client/Handlers";
 
-import { guid } from "@atomist/automation-client/internal/util/string";
-import { MessageOptions } from "@atomist/automation-client/spi/message/MessageClient";
-import { SlackMessage } from "@atomist/slack-messages/SlackMessages";
-import { SearchStackOverflow } from "../../src/commands/PassContextToClone";
+describe("editor to pass the context into the cloned method", () => {
+     it("sends a dummy context into tests, with just enough populated");
 
-describe("SearchStackOverflow", () => {
+     it("adds context as the first argument to GitCommandGitProject.cloned");
 
-    const searchSo = new SearchStackOverflow();
-    const teamId = "T79TH";
-
-    it("should response with a properly formatted search results", done => {
-        executeSearchAndVerify("Atomist", msg => {
-            assert(msg.attachments.length > 0);
-        }, done);
-    });
-
-    it("should response with a hint for no search results", done => {
-        executeSearchAndVerify("wöagljkarslödlbghksdöaofäp#aklsgöd", msg => {
-            assert(msg.text === "No results found");
-        }, done);
-    });
-
-    function executeSearchAndVerify(q: string, callback: (msg: SlackMessage) => void, done: any) {
-        const ctx = {
-            messageClient: {
-                respond(msg: string | SlackMessage, options?: MessageOptions): Promise<any> {
-                    const sm = msg as SlackMessage;
-                    callback(sm);
-                    return Promise.resolve();
-                },
-            },
-            teamId,
-            invocationId: guid(),
-            correlationId: guid(),
-        };
-
-        searchSo.q = q;
-
-        const promise = searchSo.handle(ctx as HandlerContext);
-        promise.then(result => {
-            assert(result.code === 0);
-        }).then(done, done);
-    }
+     it("tries to get the variable name right");
 });
