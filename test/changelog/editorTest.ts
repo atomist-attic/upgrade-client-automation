@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 
 -   bunch of blah blah
+-   more blah all padded
 
 ### Fixed
 
@@ -74,7 +75,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 const NextVersion = "0.3.6";
 const ReleaseDate = "2017-12-31";
-const GitLog = ["bunch of blah blah", "more blah", "lint", "fixes #23", "fix this broken thing", "add a happy method"];
+const GitLog = ["bunch of blah blah", "more blah all padded",
+    "lint", "fixes #23", "fix this broken thing", "add a happy method"];
 
 describe("putting stuff in the changelog", () => {
 
@@ -118,7 +120,7 @@ describe("manipulating the file contents", () => {
 
     it("puts the git log into 'changed' section", () => {
         const updatedFile = modifySample();
-        assert(0 < updatedFile.indexOf("\n### Changed\n\n-   bunch of blah blah\n-   more blah\n"));
+        assert(0 < updatedFile.indexOf("\n### Changed\n\n-   bunch of blah blah\n-   more blah all padded\n"));
     });
 
     it("excludes 'lint' commits", () => {
@@ -130,4 +132,10 @@ describe("manipulating the file contents", () => {
         const updatedFile = modifySample();
         assert(0 < updatedFile.indexOf("\n### Fixed\n\n-   fixes #23\n"));
     });
+
+    it("puts 'add' commits in an Added section", () => {
+        const updatedFile = modifySample();
+        assert(0 < updatedFile.indexOf("\n### Added\n\n-   add a happy method\n"));
+
+    })
 });

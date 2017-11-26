@@ -21,7 +21,12 @@ function looksLikeFix(commitSummary: string): boolean {
     return !!commitSummary.match(/fix/i);
 }
 
-function listify(items: string[]):string {
+function looksLikeAddition(commitSummary: string): boolean {
+    // we like "added" or "addition" but not "padded"
+    return !!(commitSummary.match(/^add/i) || commitSummary.match(/\Wadd/));
+}
+
+function listify(items: string[]): string {
     return items.map(s => "-   " + s).join("\n");
 }
 
@@ -39,8 +44,10 @@ export function modifyChangelogContent(nextVersion: string,
 
     const interestingCommits = commitSummaries.filter(looksNontrivial);
     const fixedCommits = interestingCommits.filter(looksLikeFix);
+    const addedCommits = interestingCommits.filter(looksLikeAddition);
     const changedCommits = interestingCommits
-        .filter(s => !fixedCommits.includes(s));
+        .filter(s => !fixedCommits.includes(s))
+        .filter(s => !addedCommits.includes(s));
 
     return oldContent
         .replace(unreleasedLineRegex, `$&
@@ -48,6 +55,10 @@ export function modifyChangelogContent(nextVersion: string,
 ## [${nextVersion}][] - ${releaseDate}
 
 [${nextVersion}]: https://github.com/atomist/automation-client-ts/compare/${oldVersion}...${nextVersion}
+
+### Added
+
+${listify(addedCommits)}
 
 ### Changed
 
