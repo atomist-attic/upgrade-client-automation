@@ -16,7 +16,6 @@
 
 import { Configuration } from "@atomist/automation-client/configuration";
 import * as appRoot from "app-root-path";
-import { SearchStackOverflow } from "./commands/SearchStackOverflow";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -28,7 +27,6 @@ export const configuration: Configuration = {
     version: pj.version,
     teamIds: [], // <-- run @atomist pwd in your slack team to obtain the team id
     commands: [
-        () => new SearchStackOverflow(),
     ],
     token,
     http: {
