@@ -7,7 +7,7 @@ import {
     MappedParameters,
     Parameter,
     Secret,
-    Secrets,
+    Secrets, Tags,
 } from "@atomist/automation-client";
 import { runCommand } from "@atomist/automation-client/action/cli/commandLine";
 import { GitHubRepoRef } from "@atomist/automation-client/operations/common/GitHubRepoRef";
@@ -17,9 +17,11 @@ import { GitCommandGitProject } from "@atomist/automation-client/project/git/Git
 import { isLocalProject } from "@atomist/automation-client/project/local/LocalProject";
 import { Project } from "@atomist/automation-client/project/Project";
 import { getLastReleasedVersionFromChangelog, populateChangelog } from "./editor";
+import { CachingDirectoryManager } from "@atomist/automation-client/spi/clone/CachingDirectoryManager";
 
 const SemanticVersionPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 
+@CommandHandler("Update the CHANGELOG in preparation for a release", "prepare release")
 export class BeginReleaseParameters {
     @Parameter({
         pattern: SemanticVersionPattern,
@@ -47,7 +49,7 @@ export class BeginReleaseHandler implements HandleCommand<BeginReleaseParameters
     public handle(context: HandlerContext, params: BeginReleaseParameters): Promise<any> {
         const clone = GitCommandGitProject.cloned(
             { token: params.githubToken },
-            new GitHubRepoRef(params.owner, params.githubToken));
+            new GitHubRepoRef(params.owner, params.repository), {}, CachingDirectoryManager);
 
         const releaseDate = formatDate(new Date());
         const pullRequest = new PullRequest("prep-" + params.nextVersion,
@@ -60,7 +62,9 @@ export class BeginReleaseHandler implements HandleCommand<BeginReleaseParameters
                     // fetch the log
                     editRepo(context, project,
                         populateChangelog(params.nextVersion, releaseDate, commitSummaries),
-                        pullRequest)));
+                        pullRequest)))
+            .catch(err => context.messageClient.respond("Sad day, but I have failed. " + err)
+                .then(() => Promise.reject(err)));
     }
 }
 
