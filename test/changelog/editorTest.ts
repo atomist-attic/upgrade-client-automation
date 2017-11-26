@@ -1,7 +1,7 @@
 import "mocha";
 import * as assert from "power-assert";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
-import { changelogGrammar, populateChangelog } from "../../src/dependencyVersion/editor";
+import { modifyChangelogContent, populateChangelog } from "../../src/dependencyVersion/editor";
 
 const SampleChangeLog = `# Change Log
 
@@ -38,7 +38,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased][]
 
-[Unreleased]: https://github.com/atomist/automation-client-ts/compare/0.3.5...HEAD
+[Unreleased]: https://github.com/atomist/automation-client-ts/compare/0.3.6...HEAD
+
+## [0.3.6][] - 2017-12-31
 
 ## [0.3.5][] - 2017-11-22
 
@@ -55,33 +57,42 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [0.3.4]: https://github.com/atomist/automation-client-ts/compare/0.3.3...0.3.4
 `;
 
+
+const NextVersion = "0.3.6";
+const ReleaseDate = "2017-12-31";
+
 describe("putting stuff in the changelog", () => {
 
     function startingPoint() {
         return InMemoryProject.of({ path: "CHANGELOG.md", content: SampleChangeLog });
     }
 
-    const NextVersion = "0.3.6";
-
-    it("updates the 'unreleased' section", done => {
-        const result = populateChangelog(NextVersion)(startingPoint(), undefined);
+    it("updates it just right", done => {
+        const result = populateChangelog(NextVersion, ReleaseDate)(startingPoint(), undefined);
 
         result.then(p => p.findFile("CHANGELOG.md"))
             .then(f => f.getContent())
             .then(updatedFile => {
-                assert(0 < updatedFile.indexOf("[Unreleased]: https://github.com/atomist/automation-client-ts/compare/0.3.6...HEAD"));
+                assert(updatedFile === UpdatedChangeLog, updatedFile);
             })
             .then(() => done(), done);
     });
 
 });
 
-describe("the changelog grammar", () => {
+describe("manipulating the file contents", () => {
 
-    it("finds the old version", () => {
-        const match = changelogGrammar.firstMatch(SampleChangeLog);
-        assert(match.lastReleasedVersion === "0.3.5");
+    function modifySample() {
+        return modifyChangelogContent(NextVersion, ReleaseDate, SampleChangeLog);
+    }
 
+    it("updates the 'unreleased' section", () => {
+        const updatedFile = modifySample();
+        assert(0 < updatedFile.indexOf("[Unreleased]: https://github.com/atomist/automation-client-ts/compare/0.3.6...HEAD"));
     });
 
-});
+    it("Adds a section", () => {
+        const updatedFile = modifySample();
+        assert(0 < updatedFile.indexOf("\n## [0.3.6][] - 2017-12-31\n"));
+    });
+})
