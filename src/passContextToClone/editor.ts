@@ -13,3 +13,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { SimpleProjectEditor } from "@atomist/automation-client/operations/edit/projectEditor";
+import { Project } from "@atomist/automation-client/project/Project";
+import { doWithFiles } from "@atomist/automation-client/project/util/projectUtils";
+import { editorHandler } from "@atomist/automation-client/operations/edit/editorToCommand";
+import { BaseEditorParameters } from "@atomist/automation-client/operations/edit/BaseEditorParameters";
+import { BranchCommit, PullRequest } from "@atomist/automation-client/operations/edit/editModes";
+import { HandleCommand } from "@atomist/automation-client";
+
+const saveUpgradeToGitHub: BranchCommit = {
+    branch: "pass-context-to-clone-atomist",
+    message: "in tests, pass a dummy context."
+};
+
+export const upgradeTo0_5: () => HandleCommand = () => editorHandler(() => sendDummyContextInTests,
+    BaseEditorParameters,
+    "upgrade code using automation-client to 0.5", {
+        editMode: saveUpgradeToGitHub,
+        intent: "upgrade code for automation-client 0.5"
+    });
+
+export const sendDummyContextInTests: SimpleProjectEditor = (p: Project) => {
+    return doWithFileContent(p, "test/**/*.ts", content => {
+        return content.replace(/GitCommandGitProject.cloned\(/g,
+            "GitCommandGitProject.cloned({} as HandlerContext, ")
+    });
+};
+
+function doWithFileContent(p: Project, glob: string, manipulation: (content: string) => string) {
+    return doWithFiles(p, "test/**/*.ts", f => {
+        return f.getContent()
+            .then(content =>
+                f.setContent(manipulation(content)),
+            )
+    });
+}

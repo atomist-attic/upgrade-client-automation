@@ -16,11 +16,46 @@
 
 import "mocha";
 import * as assert from "power-assert";
+import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
+import { sendDummyContextInTests } from "../../src/passContextToClone/editor";
+import * as stringify from "json-stringify-safe";
+
+const OldTestCode = `
+    const getAClone = (repoName: string = RepoName) => {
+        const repositoryThatExists = new GitHubRepoRef(Owner, repoName);
+        return GitCommandGitProject.cloned(Creds, repositoryThatExists);
+    };
+
+    it("does another thing", () => {
+       GitCommandGitProject.cloned({ token: "yeah" }, whatever, more, things)
+    });
+`;
+
+function getAllMatches(r: RegExp, s: string): string[] {
+    if (r.flags.indexOf("g") < 0) {
+        throw new Error("This is useless without a global regexp")
+    }
+    const output = [];
+    let m;
+    while (m = r.exec(s)) {
+        output.push(m[0])
+    }
+    return output;
+}
 
 describe("editor to pass the context into the cloned method", () => {
-     it("sends a dummy context into tests, with just enough populated");
+    it("sends a dummy context into tests, with just enough populated", done => {
+        const input = InMemoryProject.of({ path: "test/something.ts", content: OldTestCode });
+        sendDummyContextInTests(input).then(output => output.findFile("test/something.ts"))
+            .then(f => f.getContent())
+            .then(newTestCode => {
+                const wanted = /cloned\({} as HandlerContext,/g;
+                const m = getAllMatches(wanted, newTestCode);
+                assert(m.length === 2, stringify(m));
+            }).then(() => done(), done);
+    });
 
-     it("adds context as the first argument to GitCommandGitProject.cloned");
+    it("adds context as the first argument to GitCommandGitProject.cloned");
 
-     it("tries to get the variable name right");
+    it("tries to get the variable name right");
 });
