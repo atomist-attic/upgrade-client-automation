@@ -20,6 +20,11 @@ import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemory
 import { sendDummyContextInTests } from "../../src/passContextToClone/editor";
 import * as stringify from "json-stringify-safe";
 
+import * as appRoot from "app-root-path";
+import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
+import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
+import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
+
 const OldTestCode = `
     const getAClone = (repoName: string = RepoName) => {
         const repositoryThatExists = new GitHubRepoRef(Owner, repoName);
@@ -58,4 +63,32 @@ describe("editor to pass the context into the cloned method", () => {
     it("adds context as the first argument to GitCommandGitProject.cloned");
 
     it("tries to get the variable name right");
+});
+
+
+describe("please add context to the call", () => {
+
+    it("detects context in the calling function", done => {
+        const thisProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/before");
+        const mutableProject = InMemoryProject.of(thisProject.findFileSync("CodeThatUsesIt.ts"));
+
+        findMatches(mutableProject, TypeScriptES6FileParser, "CodeThatUsesIt.ts",
+            "//CallExpression[/PropertyAccessExpression[@value='InHere.giveMeYourContext']]")
+            .then(matches => {
+                console.log("FOUND nodes: " + matches.length);
+                matches
+                    .forEach(v => {
+                        console.log(v.$name + ": " + v.$value);
+                        const newValue = v.$value.replace(/\(/, "(context, ");
+                        v.$value = newValue;
+                    });
+            })
+            .then(() => mutableProject.flush())
+            .then(() => {
+                const modified = mutableProject.findFileSync("CodeThatUsesIt.ts");
+                console.log(modified.getContentSync());
+                return true;
+            }).then(() => done(), done);
+    })
 });

@@ -23,15 +23,16 @@ import { HandleCommand } from "@atomist/automation-client";
 
 const saveUpgradeToGitHub: BranchCommit = {
     branch: "pass-context-to-clone-atomist",
-    message: "in tests, pass a dummy context."
+    message: "in tests, pass a dummy context.",
 };
 
-export const upgradeTo0_5: () => HandleCommand = () => editorHandler(() => sendDummyContextInTests,
-    BaseEditorParameters,
-    "upgrade code using automation-client to 0.5", {
-        editMode: saveUpgradeToGitHub,
-        intent: "upgrade code for automation-client 0.5"
-    });
+export const upgradeTo0_5 = (): HandleCommand =>
+    editorHandler(() => sendDummyContextInTests,
+        BaseEditorParameters,
+        "upgrade code using automation-client to 0.5", {
+            editMode: saveUpgradeToGitHub,
+            intent: "upgrade code for automation-client 0.5",
+        });
 
 export const sendDummyContextInTests: SimpleProjectEditor = (p: Project) => {
     return doWithFileContent(p, "test/**/*.ts", content => {
