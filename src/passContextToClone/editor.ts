@@ -13,21 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { EditResult, SimpleProjectEditor } from "@atomist/automation-client/operations/edit/projectEditor";
+import { SimpleProjectEditor } from "@atomist/automation-client/operations/edit/projectEditor";
 import { Project } from "@atomist/automation-client/project/Project";
 import { doWithFiles } from "@atomist/automation-client/project/util/projectUtils";
 import { editorHandler } from "@atomist/automation-client/operations/edit/editorToCommand";
 import { BaseEditorParameters } from "@atomist/automation-client/operations/edit/BaseEditorParameters";
-import { BranchCommit, PullRequest } from "@atomist/automation-client/operations/edit/editModes";
+import { BranchCommit } from "@atomist/automation-client/operations/edit/editModes";
 import { HandleCommand, logger } from "@atomist/automation-client";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 
 import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
-import stringify = require("json-stringify-safe");
 import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
+import stringify = require("json-stringify-safe");
 import Requirement = AddParameter.Requirement;
 
 const saveUpgradeToGitHub: BranchCommit = {
@@ -62,7 +62,6 @@ export function passContextToFunction(functionWeWant: string): (p: Project) => P
                         const originalRequirementInArray: Requirement[] = [originalRequirement];
                         const reqs =
                             originalRequirementInArray.concat(consequences).concat(moreConsequences);
-                        logger.info("Requirements: " + stringify(reqs, null, 2));
                         return implementInSequenceWithFlushes(p, reqs);
                     });
             });
@@ -70,7 +69,7 @@ export function passContextToFunction(functionWeWant: string): (p: Project) => P
 }
 
 function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[]) {
-    console.log("implementing " + activities.length + " requirements: " + stringify(activities, null, 1));
+    logger.info("implementing " + activities.length + " requirements: " + stringify(activities, null, 1));
     return activities.reduce(
         (pp: Promise<AddParameter.Report>, r1: Requirement) => pp
             .then(report => AddParameter.implement(project, r1)
@@ -156,12 +155,11 @@ export namespace AddParameter {
 
     function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
 
-        const innerExpression = `//CallExpression[/PropertyAccessExpression[@value='${requirement.functionWithAdditionalParameter}']]`;
+        const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
 
         return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts",
             `//FunctionDeclaration[${innerExpression}]`)
             .then(matches => {
-                console.log("FOUND nodes: " + matches.length);
                 return _.flatMap(matches, enclosingFunction => {
                     const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
 
@@ -203,7 +201,6 @@ export namespace AddParameter {
     }
 
     export function implement(project: Project, requirement: Requirement): Promise<Report> {
-        logger.info("Implementing: " + stringify(requirement));
         if (isAddParameterRequirement(requirement)) {
             return addParameter(project, requirement);
         } else {
@@ -211,8 +208,15 @@ export namespace AddParameter {
         }
     }
 
+    function functionCallPathExpression(fn: string) {
+       return fn.match(/\./) ?
+            `//CallExpression[/PropertyAccessExpression[@value='${fn}']]` :
+            `//CallExpression[/Identifier[@value='${fn}']]`;
+    }
+
     function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Report> {
-        const innerExpression = `//CallExpression[/PropertyAccessExpression[@value='${requirement.functionWithAdditionalParameter}']]`;
+        const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
+
         const enclosingFunctionExpression = `/Identifier[@value='${requirement.enclosingFunction}'`;
 
         const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`
@@ -220,16 +224,11 @@ export namespace AddParameter {
         return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
             fullPathExpression)
             .then(matches => {
-                console.log("FOUND nodes: " + matches.length);
                 if (matches.length === 0) {
                     logger.warn("No matches for " + fullPathExpression + " in " + project.findFileSync("CodeThatUsesIt.ts").getContentSync());
                     return reportUnimplemented(requirement, "Function not found");
                 } else {
                     matches.map(enclosingFunction => {
-                        console.log(enclosingFunction.$name + ": " + enclosingFunction.$value);
-                        console.log(enclosingFunction.$children.map(child => child.$name + "=" + child.$value).join(", "));
-                        console.log("is it: " + (enclosingFunction as any).SyntaxList.$value);
-
                         const newValue = enclosingFunction.$value.replace(
                             new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
                             requirement.functionWithAdditionalParameter + `(${requirement.argumentName}, `);
