@@ -19,7 +19,14 @@ import { doWithFiles } from "@atomist/automation-client/project/util/projectUtil
 import { editorHandler } from "@atomist/automation-client/operations/edit/editorToCommand";
 import { BaseEditorParameters } from "@atomist/automation-client/operations/edit/BaseEditorParameters";
 import { BranchCommit, PullRequest } from "@atomist/automation-client/operations/edit/editModes";
-import { HandleCommand } from "@atomist/automation-client";
+import { HandleCommand, logger } from "@atomist/automation-client";
+import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
+import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
+
+import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
+import stringify = require("json-stringify-safe");
+import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
+import { TreeNode } from "@atomist/tree-path/TreeNode";
 
 const saveUpgradeToGitHub: BranchCommit = {
     branch: "pass-context-to-clone-atomist",
@@ -33,6 +40,121 @@ export const upgradeTo0_5 = (): HandleCommand =>
             editMode: saveUpgradeToGitHub,
             intent: "upgrade code for automation-client 0.5",
         });
+
+export function passContextToFunction(functionWeWant: string): SimpleProjectEditor {
+    return (p: Project) => {
+        return AddParameter.findConsequences(p, {
+            kind: "Add Parameter",
+            functionWithAdditionalParameter: functionWeWant,
+            parameterType: "HandlerContext",
+        }).then(reqs => {
+            logger.info("Requirements: " + stringify(reqs, null, 2))
+            return Promise.all(reqs.map(r => AddParameter.implement(p, r)))
+        }).then(() => p.flush())
+            .then(() => p);
+
+
+    }
+}
+
+namespace AddParameter {
+
+    export type FunctionIdentifier = string;
+
+    export type Requirement = AddParameterRequirement | PassArgumentRequirement
+
+    export interface AddParameterRequirement {
+        kind: "Add Parameter";
+        functionWithAdditionalParameter: FunctionIdentifier;
+        parameterType: string
+    }
+
+    function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
+        return r.kind === "Add Parameter";
+    }
+
+    export interface PassArgumentRequirement {
+        kind: "Pass Argument"
+        enclosingFunction: FunctionIdentifier,
+        functionWithAdditionalParameter: FunctionIdentifier;
+        argumentName: string
+    }
+
+    export function findConsequences(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
+
+        const innerExpression = `//CallExpression[/PropertyAccessExpression[@value='${requirement.functionWithAdditionalParameter}']]`;
+
+        return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts",
+            `//FunctionDeclaration[${innerExpression}]`)
+            .then(matches => {
+                console.log("FOUND nodes: " + matches.length);
+                return matches
+                    .map(enclosingFunction => {
+                        const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+
+                        logger.info("File is: " + (enclosingFunction as any).sourceFile.fileName); // this is part of location too
+                        const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
+                        const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
+                        if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
+                            const identifier = suitableParameterMatches[0];
+                            // If these are locatable tree nodes, I could include a line number in the instruction!
+                            logger.info("Found a call to %s inside a function called %s, with parameter %s",
+                                requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
+                            const instruction: PassArgumentRequirement = {
+                                kind: "Pass Argument",
+                                enclosingFunction: enclosingFunctionName,
+                                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+                                argumentName: identifier.$value,
+                            };
+                            return instruction;
+                        } else {
+                            logger.info("Found a call to %s inside a function called %s, no suitable parameter",
+                                requirement.functionWithAdditionalParameter, enclosingFunctionName);
+                            return {
+                                kind: "Add Parameter",
+                                functionWithAdditionalParameter: enclosingFunctionName,
+                                parameterType: requirement.parameterType,
+                            } as AddParameterRequirement;
+                        }
+                    });
+            })
+    }
+
+    export function implement(project: Project, requirement: Requirement): Promise<Project> {
+        if (isAddParameterRequirement(requirement)) {
+
+        } else {
+            return passArgument(project, requirement);
+        }
+    }
+
+    function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Project> {
+        const innerExpression = `//CallExpression[/PropertyAccessExpression[@value='${requirement.functionWithAdditionalParameter}']]`;
+        const enclosingFunctionExpression = `/Identifier[@value='${requirement.enclosingFunction}'`;
+
+        return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
+            `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`)
+            .then(matches => {
+                console.log("FOUND nodes: " + matches.length);
+                return matches.map(enclosingFunction => {
+                    console.log(enclosingFunction.$name + ": " + enclosingFunction.$value);
+                    console.log(enclosingFunction.$children.map(child => child.$name + "=" + child.$value).join(", "));
+                    console.log("is it: " + (enclosingFunction as any).SyntaxList.$value);
+
+                    const newValue = enclosingFunction.$value.replace(
+                        new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
+                        requirement.functionWithAdditionalParameter + `(${requirement.argumentName}, `);
+                    enclosingFunction.$value = newValue;
+                });
+            }).then(() => project);
+    }
+
+    function childrenNamed(parent: TreeNode, name: string) {
+        return parent.$children.filter(child => child.$name === name);
+    }
+
+}
+
 
 export const sendDummyContextInTests: SimpleProjectEditor = (p: Project) => {
     return doWithFileContent(p, "test/**/*.ts", content => {
