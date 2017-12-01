@@ -28,6 +28,7 @@ import stringify = require("json-stringify-safe");
 import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
+import Requirement = AddParameter.Requirement;
 
 const saveUpgradeToGitHub: BranchCommit = {
     branch: "pass-context-to-clone-atomist",
@@ -50,13 +51,21 @@ export function passContextToFunction(functionWeWant: string): SimpleProjectEdit
             parameterType: "HandlerContext",
             parameterName: "context",
         }).then(reqs => {
-            logger.info("Requirements: " + stringify(reqs, null, 2))
-            return Promise.all(reqs.map(r => AddParameter.implement(p, r)))
-        }).then(() => p.flush())
+            logger.info("Requirements: " + stringify(reqs, null, 2));
+            return implementInSequenceWithFlushes(p, reqs);
+        })
             .then(() => p);
 
 
     }
+}
+
+function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[]) {
+    return activities.reduce(
+        (pp: Promise<Project>, r1: Requirement) => pp
+            .then(p => AddParameter.implement(p, r1))
+            .then(p => p.flush()),
+        Promise.resolve(project));
 }
 
 namespace AddParameter {
@@ -141,10 +150,15 @@ namespace AddParameter {
         const innerExpression = `//CallExpression[/PropertyAccessExpression[@value='${requirement.functionWithAdditionalParameter}']]`;
         const enclosingFunctionExpression = `/Identifier[@value='${requirement.enclosingFunction}'`;
 
+        const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`
+
         return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
-            `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`)
+            fullPathExpression)
             .then(matches => {
                 console.log("FOUND nodes: " + matches.length);
+                if (matches.length === 0) {
+                    logger.warn("No matches for " + fullPathExpression + " in " + project.findFileSync("CodeThatUsesIt.ts").getContentSync());
+                }
                 return matches.map(enclosingFunction => {
                     console.log(enclosingFunction.$name + ": " + enclosingFunction.$value);
                     console.log(enclosingFunction.$children.map(child => child.$name + "=" + child.$value).join(", "));
@@ -166,7 +180,7 @@ namespace AddParameter {
             .then(matches => {
                 if (matches.length === 0) {
                     logger.warn("Found 0 function declarations called " + requirement.functionWithAdditionalParameter);
-                } else if(1 < matches.length) {
+                } else if (1 < matches.length) {
                     logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
                 } else {
                     const enclosingFunction = matches[0];
@@ -174,7 +188,7 @@ namespace AddParameter {
 
                     const newValue = enclosingFunction.$value.replace(
                         new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
-                        `enclosingFunctionName(${requirement.parameterName}: ${requirement.parameterType}, `);
+                        `${enclosingFunctionName}(${requirement.parameterName}: ${requirement.parameterType}, `);
                     enclosingFunction.$value = newValue;
                 }
             }).then(() => project);
