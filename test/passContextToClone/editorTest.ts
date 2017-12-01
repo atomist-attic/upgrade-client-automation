@@ -17,11 +17,12 @@
 import "mocha";
 import * as assert from "power-assert";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
-import { passContextToFunction, sendDummyContextInTests } from "../../src/passContextToClone/editor";
+import { AddParameter, passContextToFunction, sendDummyContextInTests } from "../../src/passContextToClone/editor";
 import * as stringify from "json-stringify-safe";
 
 import * as appRoot from "app-root-path";
 import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
+import findConsequences = AddParameter.findConsequences;
 
 const OldTestCode = `
     const getAClone = (repoName: string = RepoName) => {
@@ -82,8 +83,26 @@ describe("please add context to the call", () => {
                 const expected = resultProject.findFileSync("CodeThatUsesIt.ts").getContentSync();
 
                 console.log("Report: " + stringify(report));
-                assert.equal(report.unimplemented.length, 1, stringify(report, null, 2))
-                assert(modified === expected || report.unimplemented.length > 0);
+                assert.equal(report.unimplemented.length, 1, stringify(report, null, 2));
+                assert.equal(modified, expected, modified); //  || report.unimplemented.length > 0
             }).then(() => done(), done);
     })
 });
+
+describe("detection of consequences", () => {
+    it("can find calls to functions that aren't qualified names", done => {
+        const thisProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/before");
+
+        findConsequences(thisProject,
+            {
+                "kind": "Add Parameter",
+                "functionWithAdditionalParameter": "exportedDoesNotYetHaveContext",
+                "parameterType": "HandlerContext",
+                "parameterName": "context",
+            }).then(consequences => {
+            assert.equal(consequences.length, 2, stringify(consequences))
+        })
+            .then(() => done(), done);
+    })
+})

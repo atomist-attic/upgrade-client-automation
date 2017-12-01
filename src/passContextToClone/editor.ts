@@ -50,13 +50,22 @@ export function passContextToFunction(functionWeWant: string): (p: Project) => P
             functionWithAdditionalParameter: functionWeWant,
             parameterType: "HandlerContext",
             parameterName: "context",
+            why: "I want to use the context in here",
         };
-        return AddParameter.findConsequences(p, originalRequirement).then((consequences: Requirement[]) => {
-            const originalRequirementInArray: Requirement[] = [originalRequirement];
-            const reqs = originalRequirementInArray.concat(consequences);
-            logger.info("Requirements: " + stringify(reqs, null, 2));
-            return implementInSequenceWithFlushes(p, reqs);
-        });
+        return AddParameter.findConsequences(p, originalRequirement)
+            .then((consequences: Requirement[]) => {
+                return Promise.all(consequences.map(r =>
+                    AddParameter.findConsequences(p, r)))
+                    .then(arrayOfArrays =>
+                        _.flatten(arrayOfArrays))
+                    .then(moreConsequences => {
+                        const originalRequirementInArray: Requirement[] = [originalRequirement];
+                        const reqs =
+                            originalRequirementInArray.concat(consequences).concat(moreConsequences);
+                        logger.info("Requirements: " + stringify(reqs, null, 2));
+                        return implementInSequenceWithFlushes(p, reqs);
+                    });
+            });
     }
 }
 
@@ -101,11 +110,24 @@ export namespace AddParameter {
 
     export type Requirement = AddParameterRequirement | PassArgumentRequirement
 
+    // maybe there is a better way but this should work
+    export function distinct(requirements: Requirement[]): Requirement[] {
+        let result: Requirement[] = [];
+
+        for (const r of requirements) {
+            if (!result.some(other => stringify(other) === stringify(r))) {
+                result.push(r);
+            }
+        }
+        return result;
+    }
+
     export interface AddParameterRequirement {
         kind: "Add Parameter";
         functionWithAdditionalParameter: FunctionIdentifier;
         parameterType: string;
         parameterName: string;
+        why?: any;
     }
 
     function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
@@ -116,10 +138,23 @@ export namespace AddParameter {
         kind: "Pass Argument"
         enclosingFunction: FunctionIdentifier,
         functionWithAdditionalParameter: FunctionIdentifier;
-        argumentName: string
+        argumentName: string;
+        why?: any;
     }
 
-    export function findConsequences(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
+    export function findConsequences(project: Project, requirement: Requirement): Promise<Requirement[]> {
+        if (isAddParameterRequirement(requirement)) {
+            logger.info("Finding consequences of: " + stringify(requirement, null, 1));
+            return findConsequencesOfAddParameter(project, requirement).then(consequences => {
+                logger.info("Found " + consequences.length + " consequences");
+                return consequences.map(c => ({ ...c, why: requirement }))
+            });
+        } else {
+            return Promise.resolve([]);
+        }
+    }
+
+    function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
 
         const innerExpression = `//CallExpression[/PropertyAccessExpression[@value='${requirement.functionWithAdditionalParameter}']]`;
 
@@ -138,6 +173,7 @@ export namespace AddParameter {
                         // If these are locatable tree nodes, I could include a line number in the instruction!
                         logger.info("Found a call to %s inside a function called %s, with parameter %s",
                             requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
+
                         const instruction: PassArgumentRequirement = {
                             kind: "Pass Argument",
                             enclosingFunction: enclosingFunctionName,
@@ -148,6 +184,7 @@ export namespace AddParameter {
                     } else {
                         logger.info("Found a call to %s inside a function called %s, no suitable parameter",
                             requirement.functionWithAdditionalParameter, enclosingFunctionName);
+
                         return [{
                             kind: "Add Parameter",
                             functionWithAdditionalParameter: enclosingFunctionName,
