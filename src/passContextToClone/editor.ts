@@ -27,6 +27,7 @@ import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
 import stringify = require("json-stringify-safe");
 import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
+import * as _ from "lodash";
 
 const saveUpgradeToGitHub: BranchCommit = {
     branch: "pass-context-to-clone-atomist",
@@ -47,6 +48,7 @@ export function passContextToFunction(functionWeWant: string): SimpleProjectEdit
             kind: "Add Parameter",
             functionWithAdditionalParameter: functionWeWant,
             parameterType: "HandlerContext",
+            parameterName: "context",
         }).then(reqs => {
             logger.info("Requirements: " + stringify(reqs, null, 2))
             return Promise.all(reqs.map(r => AddParameter.implement(p, r)))
@@ -66,7 +68,8 @@ namespace AddParameter {
     export interface AddParameterRequirement {
         kind: "Add Parameter";
         functionWithAdditionalParameter: FunctionIdentifier;
-        parameterType: string
+        parameterType: string;
+        parameterName: string;
     }
 
     function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
@@ -88,41 +91,47 @@ namespace AddParameter {
             `//FunctionDeclaration[${innerExpression}]`)
             .then(matches => {
                 console.log("FOUND nodes: " + matches.length);
-                return matches
-                    .map(enclosingFunction => {
-                        const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+                return _.flatMap(matches, enclosingFunction => {
+                    const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
 
-                        logger.info("File is: " + (enclosingFunction as any).sourceFile.fileName); // this is part of location too
-                        const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
-                        const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
-                        if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
-                            const identifier = suitableParameterMatches[0];
-                            // If these are locatable tree nodes, I could include a line number in the instruction!
-                            logger.info("Found a call to %s inside a function called %s, with parameter %s",
-                                requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
-                            const instruction: PassArgumentRequirement = {
+                    logger.info("File is: " + (enclosingFunction as any).sourceFile.fileName); // this is part of location too
+                    const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
+                    const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
+                    if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
+                        const identifier = suitableParameterMatches[0];
+                        // If these are locatable tree nodes, I could include a line number in the instruction!
+                        logger.info("Found a call to %s inside a function called %s, with parameter %s",
+                            requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
+                        const instruction: PassArgumentRequirement = {
+                            kind: "Pass Argument",
+                            enclosingFunction: enclosingFunctionName,
+                            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+                            argumentName: identifier.$value,
+                        };
+                        return [instruction];
+                    } else {
+                        logger.info("Found a call to %s inside a function called %s, no suitable parameter",
+                            requirement.functionWithAdditionalParameter, enclosingFunctionName);
+                        return [{
+                            kind: "Add Parameter",
+                            functionWithAdditionalParameter: enclosingFunctionName,
+                            parameterType: requirement.parameterType,
+                            parameterName: requirement.parameterName,
+                        } as AddParameterRequirement,
+                            {
                                 kind: "Pass Argument",
                                 enclosingFunction: enclosingFunctionName,
                                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                                argumentName: identifier.$value,
-                            };
-                            return instruction;
-                        } else {
-                            logger.info("Found a call to %s inside a function called %s, no suitable parameter",
-                                requirement.functionWithAdditionalParameter, enclosingFunctionName);
-                            return {
-                                kind: "Add Parameter",
-                                functionWithAdditionalParameter: enclosingFunctionName,
-                                parameterType: requirement.parameterType,
-                            } as AddParameterRequirement;
-                        }
-                    });
+                                argumentName: requirement.parameterName,
+                            } as PassArgumentRequirement];
+                    }
+                });
             })
     }
 
     export function implement(project: Project, requirement: Requirement): Promise<Project> {
         if (isAddParameterRequirement(requirement)) {
-
+            return addParameter(project, requirement);
         } else {
             return passArgument(project, requirement);
         }
@@ -146,6 +155,28 @@ namespace AddParameter {
                         requirement.functionWithAdditionalParameter + `(${requirement.argumentName}, `);
                     enclosingFunction.$value = newValue;
                 });
+            }).then(() => project);
+    }
+
+    function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Project> {
+        const declarationOfInterest = `/Identifier[@value='${requirement.functionWithAdditionalParameter}'`;
+
+        return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
+            `//FunctionDeclaration[${declarationOfInterest}]]`)
+            .then(matches => {
+                if (matches.length === 0) {
+                    logger.warn("Found 0 function declarations called " + requirement.functionWithAdditionalParameter);
+                } else if(1 < matches.length) {
+                    logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
+                } else {
+                    const enclosingFunction = matches[0];
+                    const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+
+                    const newValue = enclosingFunction.$value.replace(
+                        new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
+                        `enclosingFunctionName(${requirement.parameterName}: ${requirement.parameterType}, `);
+                    enclosingFunction.$value = newValue;
+                }
             }).then(() => project);
     }
 
