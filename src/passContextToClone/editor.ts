@@ -45,14 +45,17 @@ export const upgradeTo0_5 = (): HandleCommand =>
 
 export function passContextToFunction(functionWeWant: string): SimpleProjectEditor {
     return (p: Project) => {
-        return AddParameter.findConsequences(p, {
+        const originalRequirement: Requirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: functionWeWant,
             parameterType: "HandlerContext",
             parameterName: "context",
-        }).then(reqs => {
+        }
+        return AddParameter.findConsequences(p, originalRequirement).then((consequences: Requirement[]) => {
+            const originalRequirementInArray: Requirement[] = [originalRequirement];
+            const reqs = originalRequirementInArray.concat(consequences);
             logger.info("Requirements: " + stringify(reqs, null, 2));
-            return implementInSequenceWithFlushes(p, reqs);
+            return implementInSequenceWithFlushes(p, originalRequirementInArray.concat(reqs));
         })
             .then(() => p);
 

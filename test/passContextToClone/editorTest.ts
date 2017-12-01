@@ -71,13 +71,17 @@ describe("please add context to the call", () => {
             appRoot.path + "/test/passContextToClone/resources/before");
         const mutableProject = InMemoryProject.of(thisProject.findFileSync("CodeThatUsesIt.ts"));
 
+        const resultProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/after");
+
         const functionWeWant = "InHere.giveMeYourContext";
 
         passContextToFunction(functionWeWant)(mutableProject)
             .then(() => {
-                const modified = mutableProject.findFileSync("CodeThatUsesIt.ts");
-                console.log(modified.getContentSync());
-                return true;
+                const modified = mutableProject.findFileSync("CodeThatUsesIt.ts").getContentSync();
+                const expected = resultProject.findFileSync("CodeThatUsesIt.ts").getContentSync();
+
+                assert.equal(modified, expected, modified);
             }).then(() => done(), done);
     })
 });
