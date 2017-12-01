@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { SimpleProjectEditor } from "@atomist/automation-client/operations/edit/projectEditor";
+import { EditResult, SimpleProjectEditor } from "@atomist/automation-client/operations/edit/projectEditor";
 import { Project } from "@atomist/automation-client/project/Project";
 import { doWithFiles } from "@atomist/automation-client/project/util/projectUtils";
 import { editorHandler } from "@atomist/automation-client/operations/edit/editorToCommand";
@@ -43,35 +43,59 @@ export const upgradeTo0_5 = (): HandleCommand =>
             intent: "upgrade code for automation-client 0.5",
         });
 
-export function passContextToFunction(functionWeWant: string): SimpleProjectEditor {
+export function passContextToFunction(functionWeWant: string): (p: Project) => Promise<AddParameter.Report> {
     return (p: Project) => {
         const originalRequirement: Requirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: functionWeWant,
             parameterType: "HandlerContext",
             parameterName: "context",
-        }
+        };
         return AddParameter.findConsequences(p, originalRequirement).then((consequences: Requirement[]) => {
             const originalRequirementInArray: Requirement[] = [originalRequirement];
             const reqs = originalRequirementInArray.concat(consequences);
             logger.info("Requirements: " + stringify(reqs, null, 2));
-            return implementInSequenceWithFlushes(p, originalRequirementInArray.concat(reqs));
-        })
-            .then(() => p);
-
-
+            return implementInSequenceWithFlushes(p, reqs);
+        });
     }
 }
 
 function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[]) {
+    console.log("implementing " + activities.length + " requirements: " + stringify(activities, null, 1));
     return activities.reduce(
-        (pp: Promise<Project>, r1: Requirement) => pp
-            .then(p => AddParameter.implement(p, r1))
-            .then(p => p.flush()),
-        Promise.resolve(project));
+        (pp: Promise<AddParameter.Report>, r1: Requirement) => pp
+            .then(report => AddParameter.implement(project, r1)
+                .then((report1) => project.flush()
+                    .then(() => AddParameter.combine(report, report1)))),
+        Promise.resolve(AddParameter.emptyReport));
 }
 
-namespace AddParameter {
+export namespace AddParameter {
+
+    export interface Unimplemented {
+        requirement: Requirement,
+        message: string,
+    }
+
+    export interface Report {
+        unimplemented: Unimplemented[]
+    }
+
+    export const emptyReport: Report = {
+        unimplemented: [],
+    };
+
+    function reportUnimplemented(requirement: Requirement, message: string): Report {
+        return {
+            unimplemented: [{ requirement, message }],
+        }
+    }
+
+    export function combine(report1: Report, report2: Report): Report {
+        return {
+            unimplemented: report1.unimplemented.concat(report2.unimplemented),
+        }
+    }
 
     export type FunctionIdentifier = string;
 
@@ -141,7 +165,8 @@ namespace AddParameter {
             })
     }
 
-    export function implement(project: Project, requirement: Requirement): Promise<Project> {
+    export function implement(project: Project, requirement: Requirement): Promise<Report> {
+        logger.info("Implementing: " + stringify(requirement));
         if (isAddParameterRequirement(requirement)) {
             return addParameter(project, requirement);
         } else {
@@ -149,7 +174,7 @@ namespace AddParameter {
         }
     }
 
-    function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Project> {
+    function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Report> {
         const innerExpression = `//CallExpression[/PropertyAccessExpression[@value='${requirement.functionWithAdditionalParameter}']]`;
         const enclosingFunctionExpression = `/Identifier[@value='${requirement.enclosingFunction}'`;
 
@@ -161,18 +186,21 @@ namespace AddParameter {
                 console.log("FOUND nodes: " + matches.length);
                 if (matches.length === 0) {
                     logger.warn("No matches for " + fullPathExpression + " in " + project.findFileSync("CodeThatUsesIt.ts").getContentSync());
-                }
-                return matches.map(enclosingFunction => {
-                    console.log(enclosingFunction.$name + ": " + enclosingFunction.$value);
-                    console.log(enclosingFunction.$children.map(child => child.$name + "=" + child.$value).join(", "));
-                    console.log("is it: " + (enclosingFunction as any).SyntaxList.$value);
+                    return reportUnimplemented(requirement, "Function not found");
+                } else {
+                    matches.map(enclosingFunction => {
+                        console.log(enclosingFunction.$name + ": " + enclosingFunction.$value);
+                        console.log(enclosingFunction.$children.map(child => child.$name + "=" + child.$value).join(", "));
+                        console.log("is it: " + (enclosingFunction as any).SyntaxList.$value);
 
-                    const newValue = enclosingFunction.$value.replace(
-                        new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
-                        requirement.functionWithAdditionalParameter + `(${requirement.argumentName}, `);
-                    enclosingFunction.$value = newValue;
-                });
-            }).then(() => project);
+                        const newValue = enclosingFunction.$value.replace(
+                            new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
+                            requirement.functionWithAdditionalParameter + `(${requirement.argumentName}, `);
+                        enclosingFunction.$value = newValue;
+                    });
+                    return emptyReport;
+                }
+            });
     }
 
     function pathExpressionToFunctionDeclaration(fn: FunctionIdentifier): string {
@@ -183,7 +211,7 @@ namespace AddParameter {
         return functionDeclarationExpression
     }
 
-    function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Project> {
+    function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
 
         const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
         return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
@@ -191,8 +219,10 @@ namespace AddParameter {
             .then(matches => {
                 if (matches.length === 0) {
                     logger.warn("Found 0 function declarations called " + requirement.functionWithAdditionalParameter);
+                    return reportUnimplemented(requirement, "Function declaration not found");
                 } else if (1 < matches.length) {
                     logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
+                    return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
                 } else {
                     const enclosingFunction = matches[0];
                     const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
@@ -201,8 +231,9 @@ namespace AddParameter {
                         new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
                         `${enclosingFunctionName}(${requirement.parameterName}: ${requirement.parameterType}, `);
                     enclosingFunction.$value = newValue;
+                    return emptyReport;
                 }
-            }).then(() => project);
+            });
     }
 
     function childrenNamed(parent: TreeNode, name: string) {
