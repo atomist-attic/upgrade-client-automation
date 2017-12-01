@@ -175,11 +175,19 @@ namespace AddParameter {
             }).then(() => project);
     }
 
-    function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Project> {
-        const declarationOfInterest = `/Identifier[@value='${requirement.functionWithAdditionalParameter}'`;
+    function pathExpressionToFunctionDeclaration(fn: FunctionIdentifier): string {
 
+        const declarationOfInterest = `/Identifier[@value='${fn}'`;
+        const functionDeclarationExpression = `//FunctionDeclaration[${declarationOfInterest}]]`;
+
+        return functionDeclarationExpression
+    }
+
+    function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Project> {
+
+        const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
         return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
-            `//FunctionDeclaration[${declarationOfInterest}]]`)
+            functionDeclarationExpression)
             .then(matches => {
                 if (matches.length === 0) {
                     logger.warn("Found 0 function declarations called " + requirement.functionWithAdditionalParameter);
