@@ -46,22 +46,22 @@ export function passContextToFunction(params: {
             dummyValue: "{} as HandlerContext",
         };
 
-        const originalRequirementInArray: Requirement[] = [originalRequirement];
         return AddParameter.findConsequences(p, originalRequirement)
             .then((consequences: Requirement[]) => {
                 return Promise.all(consequences.map(r =>
                     AddParameter.findConsequences(p, r))) // todo: this should be recursive, this is too limited
-                    .then(arrayOfArrays =>
-                        _.flatten(arrayOfArrays))
+                    .then(arrayOfArrays => _.flatten(arrayOfArrays))
                     .then(moreConsequences => AddParameter.distinct(
-                        originalRequirementInArray
-                            .concat(consequences)
+                        consequences
                             .concat(moreConsequences)))
                     .then(reqs => implementInSequenceWithFlushes(p, reqs));
-            }).then(report => ({
-                ...successfulEdit(p, true),
-                addParameterReport: report,
-            }));
+            }).then(report => {
+                logger.info("Report: " + stringify(report, null, 2));
+                return {
+                    ...successfulEdit(p, report.implemented.length > 0),
+                    addParameterReport: report,
+                }
+            });
     }
 }
 
@@ -84,27 +84,39 @@ export namespace AddParameter {
 
     export interface Report {
         unimplemented: Unimplemented[]
+
+        implemented: Requirement[]
     }
 
     export const emptyReport: Report = {
         unimplemented: [],
+        implemented: [],
     };
 
     function reportUnimplemented(requirement: Requirement, message: string): Report {
         return {
             unimplemented: [{ requirement, message }],
+            implemented: [],
+        }
+    }
+
+    function reportImplemented(requirement: Requirement): Report {
+        return {
+            unimplemented: [],
+            implemented: [requirement],
         }
     }
 
     export function combine(report1: Report, report2: Report): Report {
         return {
             unimplemented: report1.unimplemented.concat(report2.unimplemented),
+            implemented: report1.implemented.concat(report2.implemented),
         }
     }
 
     export type FunctionIdentifier = { name: string, filePath: string };
 
-    export type Requirement = AddParameterRequirement | PassArgumentRequirement
+    export type Requirement = AddParameterRequirement | PassArgumentRequirement | PassDummyInTestsRequirement
 
     // maybe there is a better way but this should work
     export function distinct(requirements: Requirement[]): Requirement[] {
@@ -125,6 +137,17 @@ export namespace AddParameter {
         parameterName: string;
         dummyValue: string;
         why?: any;
+    }
+
+    export interface PassDummyInTestsRequirement {
+        kind: "Pass Dummy In Tests";
+        functionWithAdditionalParameter: FunctionIdentifier;
+        dummyValue: string;
+        why?: any;
+    }
+
+    function isAddDummyInTests(r: Requirement): r is PassDummyInTestsRequirement {
+        return r.kind === "Pass Dummy In Tests";
     }
 
     function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
@@ -152,7 +175,11 @@ export namespace AddParameter {
     }
 
     function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
-
+        const passDummyInTests: PassDummyInTestsRequirement = {
+            kind: "Pass Dummy In Tests",
+            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+            dummyValue: requirement.dummyValue
+        };
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter.name);
 
         // in source, either find a parameter that fits, or receive it.
@@ -198,13 +225,17 @@ export namespace AddParameter {
                         };
                         return [passNewArgument, newParameterForMe];
                     }
-                });
-            })
+                })
+            }).then((srcConsequences: Requirement[]) => srcConsequences.concat([passDummyInTests]));
     }
 
     export function implement(project: Project, requirement: Requirement): Promise<Report> {
+        logger.info("Implementing: " + stringify(requirement, null, 2));
         if (isAddParameterRequirement(requirement)) {
             return addParameter(project, requirement);
+        }
+        if (isAddDummyInTests(requirement)) {
+            return passDummyInTests(project, requirement);
         } else {
             return passArgument(project, requirement);
         }
@@ -225,7 +256,7 @@ export namespace AddParameter {
 
         return findMatches(project,
             TypeScriptES6FileParser,
-            "**/" + requirement.functionWithAdditionalParameter.filePath,
+            "**/" + requirement.enclosingFunction.filePath,
             fullPathExpression)
             .then(mm => applyPassArgument(mm, requirement));
     }
@@ -236,11 +267,11 @@ export namespace AddParameter {
         } else {
             matches.map(enclosingFunction => {
                 const newValue = enclosingFunction.$value.replace(
-                    new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
-                    requirement.functionWithAdditionalParameter + `(${requirement.argumentValue}, `);
+                    new RegExp(requirement.functionWithAdditionalParameter.name + "\\s*\\(", "g"),
+                    requirement.functionWithAdditionalParameter.name + `(${requirement.argumentValue}, `);
                 enclosingFunction.$value = newValue;
             });
-            return emptyReport;
+            return reportImplemented(requirement);
         }
     }
 
@@ -254,48 +285,52 @@ export namespace AddParameter {
         return functionDeclarationExpression;
     }
 
-    function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
-
-        const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
-        return updateTests(project, requirement)
-            .then(() =>
-                findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
-                    functionDeclarationExpression)
-                    .then(matches => {
-                        if (matches.length === 0) {
-                            logger.warn("Found 0 function declarations called " +
-                                requirement.functionWithAdditionalParameter.name + " in " +
-                                requirement.functionWithAdditionalParameter.filePath);
-                            return reportUnimplemented(requirement, "Function declaration not found");
-                        } else if (1 < matches.length) {
-                            logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
-                            return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
-                        } else {
-                            const enclosingFunction = matches[0];
-                            const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
-
-                            const newValue = enclosingFunction.$value.replace(
-                                new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
-                                `${enclosingFunctionName}(${requirement.parameterName}: ${requirement.parameterType}, `);
-                            enclosingFunction.$value = newValue;
-                            return emptyReport;
-                        }
-                    }));
-    }
-
-    function updateTests(project: Project, requirement: AddParameterRequirement): Promise<void> {
+    function passDummyInTests(project: Project, requirement: PassDummyInTestsRequirement): Promise<Report> {
         return findMatches(project, TypeScriptES6FileParser, "test/**/*.ts",
-            functionCallPathExpression(requirement.functionWithAdditionalParameter.name)).then(matches => {
-            matches.map(functionCall => {
-                const newValue = functionCall.$value.replace(
-                    new RegExp(requirement.functionWithAdditionalParameter.name + "\\s*\\(", "g"),
-                    `${requirement.functionWithAdditionalParameter.name}(${requirement.dummyValue}, `);
-                functionCall.$value = newValue;
-                return emptyReport;
-            })
-        })
+            functionCallPathExpression(requirement.functionWithAdditionalParameter.name))
+            .then(matches => {
+                if (matches.length === 0) {
+                    return emptyReport; // it's valid for there to be no changes
+                } else {
+                    matches.map(functionCall => {
+                        const newValue = functionCall.$value.replace(
+                            new RegExp(requirement.functionWithAdditionalParameter.name + "\\s*\\(", "g"),
+                            `${requirement.functionWithAdditionalParameter.name}(${requirement.dummyValue}, `);
+                        functionCall.$value = newValue;
 
+                    });
+                    return reportImplemented(requirement);
+                }
+            })
     }
+
+
+    function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
+        const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
+        return findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
+            functionDeclarationExpression)
+            .then(matches => {
+                if (matches.length === 0) {
+                    logger.warn("Found 0 function declarations called " +
+                        requirement.functionWithAdditionalParameter.name + " in " +
+                        requirement.functionWithAdditionalParameter.filePath);
+                    return reportUnimplemented(requirement, "Function declaration not found");
+                } else if (1 < matches.length) {
+                    logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
+                    return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
+                } else {
+                    const enclosingFunction = matches[0];
+                    const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+
+                    const newValue = enclosingFunction.$value.replace(
+                        new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
+                        `${enclosingFunctionName}(${requirement.parameterName}: ${requirement.parameterType}, `);
+                    enclosingFunction.$value = newValue;
+                    return reportImplemented(requirement);
+                }
+            });
+    }
+
 
     function childrenNamed(parent: TreeNode, name: string) {
         return parent.$children.filter(child => child.$name === name);

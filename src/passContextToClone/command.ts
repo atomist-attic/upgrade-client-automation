@@ -1,4 +1,3 @@
-
 import { GitHubNameRegExp } from "@atomist/automation-client/operations/common/params/gitHubPatterns";
 import {
     CommandHandler, HandleCommand, HandlerContext, MappedParameter, MappedParameters, Parameter, Secret,
@@ -31,21 +30,22 @@ export class UpgradeTo0_5 implements HandleCommand {
         const editor = passContextToFunction({
             name: "GitCommandGitProject.cloned",
             filePath: "src/project/git/GitCommandGitProject.ts",
-        }); 
+        });
 
         return editOne(ctx, { token: params.githubToken }, editor, saveUpgradeToGitHub
-            , new GitHubRepoRef(params.owner, params.repo)).then(result => {
-                const report = (result as MySpecialEditReport).addParameterReport;
-                if (!report) {
-                    ctx.messageClient.respond("I didn't get my report back, dangit. ");
-                    console.log("Edit Result: " + stringify(result));
-                }
-                const more = report.unimplemented.length === 0 ? "" : ` Unable to implement these: ` +
-                    report.unimplemented.map(m => stringify(m, null, 2)).join("\n");
-                // really I need to put this on the PR
-                return ctx.messageClient.respond("Whew. I did a thing." + more)
-            },
-        );
+            , new GitHubRepoRef(params.owner, params.repo))
+            .then(result => {
+                    const report = (result as MySpecialEditReport).addParameterReport;
+                    if (!report) {
+                        ctx.messageClient.respond("I didn't get my report back, dangit. ");
+                        console.log("Edit Result: " + stringify(result));
+                    } else {
+                        const more = report.unimplemented.length === 0 ? "" : ` Unable to implement these: ` +
+                            report.unimplemented.map(m => stringify(m, null, 2)).join("\n");
+                        // really I need to put this on the PR
+                        return ctx.messageClient.respond("Whew. I did a thing." + more)
+                    }
+                });
 
 
     }

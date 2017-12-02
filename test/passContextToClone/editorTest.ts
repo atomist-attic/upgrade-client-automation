@@ -86,8 +86,9 @@ describe("please add context to the call", () => {
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
                 console.log(modified);
-                assert.equal(report.addParameterReport.unimplemented.length, 1, stringify(report, null, 2));
-                // assert.equal(modified, expected, modified); //  there is one difference we don't cover
+                assert.equal(report.addParameterReport.unimplemented.length, 0, stringify(report, null, 2));
+                assert.equal(report.addParameterReport.implemented.length, 9, stringify(report, null, 2));
+                assert.equal(modified, expected, modified); //  there is one difference we don't cover
             }).then(() => done(), done);
     });
 
@@ -111,7 +112,7 @@ describe("detection of consequences", () => {
                 "parameterName": "context",
                 "dummyValue": "{},",
             }).then(consequences => {
-            assert.equal(consequences.length, 2, stringify(consequences))
+            assert.equal(consequences.length, 3, stringify(consequences))
         })
             .then(() => done(), done);
     });
