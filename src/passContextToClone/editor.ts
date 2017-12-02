@@ -324,13 +324,13 @@ export namespace AddParameter {
                     logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
                     return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
                 } else {
-                    const enclosingFunction = matches[0];
-                    const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+                    const functionDeclaration = matches[0];
+                    const identifier = requirement.functionWithAdditionalParameter.name;
 
-                    const newValue = enclosingFunction.$value.replace(
-                        new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
-                        `${enclosingFunctionName}(${requirement.parameterName}: ${requirement.parameterType}, `);
-                    enclosingFunction.$value = newValue;
+                    const newValue = functionDeclaration.$value.replace(
+                        new RegExp(identifier + "\\s*\\(", "g"),
+                        `${identifier}(${requirement.parameterName}: ${requirement.parameterType}, `);
+                    functionDeclaration.$value = newValue;
                     return reportImplemented(requirement);
                 }
             });
