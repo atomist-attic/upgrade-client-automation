@@ -53,13 +53,16 @@ function getAllMatches(r: RegExp, s: string): string[] {
 
 describe("editor to pass the context into the cloned method", () => {
     it("sends a dummy context into tests, with just enough populated", done => {
+        const functionWeWant = "GitCommandGitProject.cloned";
+
         const input = InMemoryProject.of({ path: "test/something.ts", content: OldTestCode });
-        sendDummyContextInTests(input).then(output => output.findFile("test/something.ts"))
+        passContextToFunction(functionWeWant)(input)
+            .then(report => input.findFile("test/something.ts"))
             .then(f => f.getContent())
             .then(newTestCode => {
                 const wanted = /cloned\({} as HandlerContext,/g;
                 const m = getAllMatches(wanted, newTestCode);
-                assert(m.length === 2, stringify(m));
+                assert.equal(m.length,2, newTestCode);
             }).then(() => done(), done);
     });
 });

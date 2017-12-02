@@ -29,6 +29,7 @@ import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 import stringify = require("json-stringify-safe");
 import Requirement = AddParameter.Requirement;
+import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 
 const saveUpgradeToGitHub: BranchCommit = {
     branch: "pass-context-to-clone-atomist",
@@ -51,6 +52,7 @@ export function passContextToFunction(functionWeWant: string): (p: Project) => P
             parameterType: "HandlerContext",
             parameterName: "context",
             why: "I want to use the context in here",
+            dummyValue: "{} as HandlerContext",
         };
 
         const originalRequirementInArray: Requirement[] = [originalRequirement];
@@ -127,6 +129,7 @@ export namespace AddParameter {
         functionWithAdditionalParameter: FunctionIdentifier;
         parameterType: string;
         parameterName: string;
+        dummyValue: string;
         why?: any;
     }
 
@@ -158,6 +161,7 @@ export namespace AddParameter {
 
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
 
+        // in source, either find a parameter that fits, or receive it.
         return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts",
             `//FunctionDeclaration[${innerExpression}]`)
             .then(matches => {
@@ -167,9 +171,10 @@ export namespace AddParameter {
                     logger.info("File is: " + (enclosingFunction as any).sourceFile.fileName); // this is part of location too
                     const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
                     const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
+
                     if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
                         const identifier = suitableParameterMatches[0];
-                        // If these are locatable tree nodes, I could include a line number in the instruction!
+                        // these are locatable tree nodes, I can include a line number in the instruction! sourceLocation.lineFrom1
                         logger.info("Found a call to %s inside a function called %s, with parameter %s",
                             requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
 
@@ -184,21 +189,40 @@ export namespace AddParameter {
                         logger.info("Found a call to %s inside a function called %s, no suitable parameter",
                             requirement.functionWithAdditionalParameter, enclosingFunctionName);
 
-                        return [{
+                        const passNewArgument: AddParameterRequirement = {
                             kind: "Add Parameter",
                             functionWithAdditionalParameter: enclosingFunctionName,
                             parameterType: requirement.parameterType,
                             parameterName: requirement.parameterName,
-                        } as AddParameterRequirement,
-                            {
-                                kind: "Pass Argument",
-                                enclosingFunction: enclosingFunctionName,
-                                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                                argumentValue: requirement.parameterName,
-                            } as PassArgumentRequirement];
+                            dummyValue: requirement.dummyValue,
+                        };
+                        const newParameterForMe: PassArgumentRequirement = {
+                            kind: "Pass Argument",
+                            enclosingFunction: enclosingFunctionName,
+                            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+                            argumentValue: requirement.parameterName,
+                        };
+                        return [passNewArgument, newParameterForMe];
                     }
                 });
             })
+            // in tests, pass a dummy value.
+            .then(srcRequirements => findMatches(project, TypeScriptES6FileParser, "test/**/*.ts",
+                `//FunctionDeclaration[${innerExpression}]`)
+                .then(matches => {
+                    return _.flatMap(matches, enclosingFunction => {
+                        const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+                        const instruction: PassArgumentRequirement = {
+                            kind: "Pass Argument",
+                            enclosingFunction: enclosingFunctionName,
+                            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+                            argumentValue: requirement.dummyValue,
+                        };
+                        return [instruction];
+
+                    });
+                })
+                .then(testRequirements => srcRequirements.concat(testRequirements)))
     }
 
     export function implement(project: Project, requirement: Requirement): Promise<Report> {
@@ -222,22 +246,25 @@ export namespace AddParameter {
 
         const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`
 
-        return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts", // TODO: get filename
+        return findMatches(project,
+            TypeScriptES6FileParser,
+            "src/**/*.ts", // TODO: get filename
             fullPathExpression)
-            .then(matches => {
-                if (matches.length === 0) {
-                    logger.warn("No matches for " + fullPathExpression + " in " + project.findFileSync("src/**/*.ts").getContentSync());
-                    return reportUnimplemented(requirement, "Function not found");
-                } else {
-                    matches.map(enclosingFunction => {
-                        const newValue = enclosingFunction.$value.replace(
-                            new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
-                            requirement.functionWithAdditionalParameter + `(${requirement.argumentValue}, `);
-                        enclosingFunction.$value = newValue;
-                    });
-                    return emptyReport;
-                }
+            .then(mm => applyPassArgument(mm, requirement));
+    }
+
+    function applyPassArgument(matches: MatchResult[], requirement: PassArgumentRequirement): Report {
+        if (matches.length === 0) {
+            return reportUnimplemented(requirement, "Function not found");
+        } else {
+            matches.map(enclosingFunction => {
+                const newValue = enclosingFunction.$value.replace(
+                    new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
+                    requirement.functionWithAdditionalParameter + `(${requirement.argumentValue}, `);
+                enclosingFunction.$value = newValue;
             });
+            return emptyReport;
+        }
     }
 
     function pathExpressionToFunctionDeclaration(fn: FunctionIdentifier): string {
