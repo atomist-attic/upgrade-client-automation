@@ -26,6 +26,7 @@ import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
 import stringify = require("json-stringify-safe");
 import Requirement = AddParameter.Requirement;
+import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 
 
 export interface MySpecialEditReport extends EditResult {
@@ -54,6 +55,10 @@ export function passContextToFunction(params: {
                     .then(moreConsequences => AddParameter.distinct(
                         consequences
                             .concat(moreConsequences)))
+                    .then(reqs => {
+                        logger.info("Reqs: " + stringify(reqs, null, 2));
+                        return reqs;
+                    })
                     .then(reqs => implementInSequenceWithFlushes(p, reqs));
             }).then(report => {
                 logger.info("Report: " + stringify(report, null, 2));
@@ -189,7 +194,7 @@ export namespace AddParameter {
                 return _.flatMap(matches, enclosingFunction => {
                     const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
 
-                    const filePath = (enclosingFunction as any).sourceFile.fileName; // TODO: what I really want is the path
+                    const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
                     const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
                     const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
 

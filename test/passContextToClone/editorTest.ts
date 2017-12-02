@@ -96,6 +96,43 @@ describe("please add context to the call", () => {
 
 });
 
+describe("the thing i actually want to do", () => {
+    it("finds a reasonable number of consequences", done => {
+        const thisProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/before");
+
+        findConsequences(thisProject,
+            {
+                "kind": "Add Parameter",
+                "functionWithAdditionalParameter": {
+                    name: "GitCommandGitProject.cloned",
+                    filePath: "src/project/git/GitCommandGitProject.ts",
+                },
+                "parameterType": "HandlerContext",
+                "parameterName": "context",
+                "dummyValue": "{},",
+            }).then(consequences => {
+
+            assert.equal(consequences.length,
+                2, // not really i just want it to print them
+                stringify(consequences, null, 2))
+        })
+            .then(() => done(), done);
+    }).timeout(20000)
+
+    it("doesn't fuck the fucking shit up 2", done => {
+        const thisProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/before");
+
+        passContextToFunction({ name: "GitCommandGitProject.cloned",
+            filePath: "src/project/git/GitCommandGitProject.ts"})(thisProject)
+            .then(result => {
+                console.log(stringify(result, null, 2))
+            })
+            .then(() => done(), done);
+    }).timeout(20000)
+});
+
 describe("detection of consequences", () => {
     it("can find calls to functions that aren't qualified names", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
