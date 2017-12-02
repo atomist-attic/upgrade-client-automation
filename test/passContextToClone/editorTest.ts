@@ -17,7 +17,7 @@
 import "mocha";
 import * as assert from "power-assert";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
-import { AddParameter, passContextToFunction, sendDummyContextInTests } from "../../src/passContextToClone/editor";
+import { AddParameter, passContextToFunction } from "../../src/passContextToClone/editor";
 import * as stringify from "json-stringify-safe";
 
 import * as appRoot from "app-root-path";
@@ -56,7 +56,7 @@ describe("editor to pass the context into the cloned method", () => {
         const functionWeWant = "GitCommandGitProject.cloned";
 
         const input = InMemoryProject.of({ path: "test/something.ts", content: OldTestCode });
-        passContextToFunction(functionWeWant)(input)
+        passContextToFunction(functionWeWant, "src/project/git/GitCommandGitProject.ts")(input)
             .then(report => input.findFile("test/something.ts"))
             .then(f => f.getContent())
             .then(newTestCode => {
@@ -80,7 +80,7 @@ describe("please add context to the call", () => {
 
         const functionWeWant = "InHere.giveMeYourContext";
 
-        passContextToFunction(functionWeWant)(mutableProject)
+        passContextToFunction(functionWeWant, "src/CodeThatUsesIt.ts")(mutableProject)
             .then(report => {
                 const modified = mutableProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
@@ -105,9 +105,10 @@ describe("detection of consequences", () => {
         findConsequences(thisProject,
             {
                 "kind": "Add Parameter",
-                "functionWithAdditionalParameter": "exportedDoesNotYetHaveContext",
+                "functionWithAdditionalParameter": {name: "exportedDoesNotYetHaveContext", filePath: "src/CodeThatUsesIt.ts"},
                 "parameterType": "HandlerContext",
                 "parameterName": "context",
+                "dummyValue": "{},"
             }).then(consequences => {
             assert.equal(consequences.length, 2, stringify(consequences))
         })

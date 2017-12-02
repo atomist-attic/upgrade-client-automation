@@ -13,13 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { SimpleProjectEditor } from "@atomist/automation-client/operations/edit/projectEditor";
 import { Project } from "@atomist/automation-client/project/Project";
-import { doWithFiles } from "@atomist/automation-client/project/util/projectUtils";
-import { editorHandler } from "@atomist/automation-client/operations/edit/editorToCommand";
-import { BaseEditorParameters } from "@atomist/automation-client/operations/edit/BaseEditorParameters";
 import { BranchCommit } from "@atomist/automation-client/operations/edit/editModes";
-import { HandleCommand, logger } from "@atomist/automation-client";
+import { logger } from "@atomist/automation-client";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 
@@ -27,28 +23,21 @@ import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
 import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
+import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import stringify = require("json-stringify-safe");
 import Requirement = AddParameter.Requirement;
-import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 
 const saveUpgradeToGitHub: BranchCommit = {
     branch: "pass-context-to-clone-atomist",
     message: "in tests, pass a dummy context.",
 };
 
-export const upgradeTo0_5 = (): HandleCommand =>
-    editorHandler(() => sendDummyContextInTests,
-        BaseEditorParameters,
-        "upgrade code using automation-client to 0.5", {
-            editMode: saveUpgradeToGitHub,
-            intent: "upgrade code for automation-client 0.5",
-        });
-
-export function passContextToFunction(functionWeWant: string): (p: Project) => Promise<AddParameter.Report> {
+export function passContextToFunction(functionWeWant: string,
+                                      filePath: string): (p: Project) => Promise<AddParameter.Report> {
     return (p: Project) => {
         const originalRequirement: Requirement = {
             kind: "Add Parameter",
-            functionWithAdditionalParameter: functionWeWant,
+            functionWithAdditionalParameter: { name: functionWeWant, filePath },
             parameterType: "HandlerContext",
             parameterName: "context",
             why: "I want to use the context in here",
@@ -108,7 +97,7 @@ export namespace AddParameter {
         }
     }
 
-    export type FunctionIdentifier = string;
+    export type FunctionIdentifier = { name: string, filePath: string };
 
     export type Requirement = AddParameterRequirement | PassArgumentRequirement
 
@@ -159,7 +148,7 @@ export namespace AddParameter {
 
     function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
 
-        const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
+        const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter.name);
 
         // in source, either find a parameter that fits, or receive it.
         return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts",
@@ -168,7 +157,7 @@ export namespace AddParameter {
                 return _.flatMap(matches, enclosingFunction => {
                     const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
 
-                    logger.info("File is: " + (enclosingFunction as any).sourceFile.fileName); // this is part of location too
+                    const filePath = (enclosingFunction as any).sourceFile.fileName;
                     const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
                     const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
 
@@ -180,7 +169,7 @@ export namespace AddParameter {
 
                         const instruction: PassArgumentRequirement = {
                             kind: "Pass Argument",
-                            enclosingFunction: enclosingFunctionName,
+                            enclosingFunction: { name: enclosingFunctionName, filePath },
                             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                             argumentValue: identifier.$value,
                         };
@@ -191,14 +180,14 @@ export namespace AddParameter {
 
                         const passNewArgument: AddParameterRequirement = {
                             kind: "Add Parameter",
-                            functionWithAdditionalParameter: enclosingFunctionName,
+                            functionWithAdditionalParameter: { name: enclosingFunctionName, filePath },
                             parameterType: requirement.parameterType,
                             parameterName: requirement.parameterName,
                             dummyValue: requirement.dummyValue,
                         };
                         const newParameterForMe: PassArgumentRequirement = {
                             kind: "Pass Argument",
-                            enclosingFunction: enclosingFunctionName,
+                            enclosingFunction: { name: enclosingFunctionName, filePath },
                             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                             argumentValue: requirement.parameterName,
                         };
@@ -208,13 +197,14 @@ export namespace AddParameter {
             })
             // in tests, pass a dummy value.
             .then(srcRequirements => findMatches(project, TypeScriptES6FileParser, "test/**/*.ts",
-                `//FunctionDeclaration[${innerExpression}]`)
+                `${innerExpression}`)
                 .then(matches => {
                     return _.flatMap(matches, enclosingFunction => {
+                        const filePath = (enclosingFunction as any).sourceFile.fileName;
                         const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
                         const instruction: PassArgumentRequirement = {
                             kind: "Pass Argument",
-                            enclosingFunction: enclosingFunctionName,
+                            enclosingFunction: { name: enclosingFunctionName, filePath },
                             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                             argumentValue: requirement.dummyValue,
                         };
@@ -240,15 +230,15 @@ export namespace AddParameter {
     }
 
     function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Report> {
-        const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
+        const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter.name);
 
-        const enclosingFunctionExpression = `/Identifier[@value='${requirement.enclosingFunction}'`;
+        const enclosingFunctionExpression = `/Identifier[@value='${requirement.enclosingFunction.name}'`;
 
-        const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`
+        const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`;
 
         return findMatches(project,
             TypeScriptES6FileParser,
-            "src/**/*.ts", // TODO: get filename
+            requirement.functionWithAdditionalParameter.filePath,
             fullPathExpression)
             .then(mm => applyPassArgument(mm, requirement));
     }
@@ -269,20 +259,24 @@ export namespace AddParameter {
 
     function pathExpressionToFunctionDeclaration(fn: FunctionIdentifier): string {
 
-        const declarationOfInterest = `/Identifier[@value='${fn}'`;
+        const declarationOfInterest = `/Identifier[@value='${fn.name}'`;
         const functionDeclarationExpression = `//FunctionDeclaration[${declarationOfInterest}]]`;
 
-        return functionDeclarationExpression
+        // TODO: handle ones with a namespace component.
+
+        return functionDeclarationExpression;
     }
 
     function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
 
         const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
-        return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts", // TODO: get filename
+        return findMatches(project, TypeScriptES6FileParser, requirement.functionWithAdditionalParameter.filePath,
             functionDeclarationExpression)
             .then(matches => {
                 if (matches.length === 0) {
-                    logger.warn("Found 0 function declarations called " + requirement.functionWithAdditionalParameter);
+                    logger.warn("Found 0 function declarations called " +
+                        requirement.functionWithAdditionalParameter.name + " in " +
+                        requirement.functionWithAdditionalParameter.filePath);
                     return reportUnimplemented(requirement, "Function declaration not found");
                 } else if (1 < matches.length) {
                     logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
@@ -304,21 +298,4 @@ export namespace AddParameter {
         return parent.$children.filter(child => child.$name === name);
     }
 
-}
-
-
-export const sendDummyContextInTests: SimpleProjectEditor = (p: Project) => {
-    return doWithFileContent(p, "test/**/*.ts", content => {
-        return content.replace(/GitCommandGitProject.cloned\(/g,
-            "GitCommandGitProject.cloned({} as HandlerContext, ")
-    });
-};
-
-function doWithFileContent(p: Project, glob: string, manipulation: (content: string) => string) {
-    return doWithFiles(p, "test/**/*.ts", f => {
-        return f.getContent()
-            .then(content =>
-                f.setContent(manipulation(content)),
-            )
-    });
 }
