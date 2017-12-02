@@ -14,7 +14,7 @@ describe("GitProject cloning on filesystem", () => {
 
     const getAClone = (repoName: string = RepoName) => {
         const repositoryThatExists = new GitHubRepoRef(Owner, repoName);
-        return GitCommandGitProject.cloned(Creds, repositoryThatExists);
+        return GitCommandGitProject.cloned({} as HandlerContext, Creds, repositoryThatExists);
     };
 
     it("does a test using that", () => {
