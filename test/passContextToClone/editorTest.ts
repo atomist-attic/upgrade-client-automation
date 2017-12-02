@@ -27,6 +27,8 @@ import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
+import implement = AddParameter.implement;
+import Requirement = AddParameter.Requirement;
 
 const OldTestCode = `
     const getAClone = (repoName: string = RepoName) => {
@@ -130,6 +132,122 @@ describe("the thing i actually want to do", () => {
                 console.log(stringify(result, null, 2))
             })
             .then(() => done(), done);
+    }).timeout(20000)
+
+    it("can carry out this instruction", done => {
+        const instructions: Requirement[] = [
+            {
+                "kind": "Add Parameter",
+                "functionWithAdditionalParameter": {
+                    "name": "gitHubRepoLoader",
+                    "filePath": "src/gitHubRepoLoader.ts"
+                },
+                "parameterType": "HandlerContext",
+                "parameterName": "context",
+                "dummyValue": "{} as HandlerContext",
+                "why": {
+                    "kind": "Add Parameter",
+                    "functionWithAdditionalParameter": {
+                        "name": "GitCommandGitProject.cloned",
+                        "filePath": "src/project/git/GitCommandGitProject.ts"
+                    },
+                    "parameterType": "HandlerContext",
+                    "parameterName": "context",
+                    "why": "I want to use the context in here",
+                    "dummyValue": "{} as HandlerContext"
+                }
+            },
+            {
+                "kind": "Pass Argument",
+                "enclosingFunction": {
+                    "name": "gitHubRepoLoader",
+                    "filePath": "src/gitHubRepoLoader.ts"
+                },
+                "functionWithAdditionalParameter": {
+                    "name": "GitCommandGitProject.cloned",
+                    "filePath": "src/project/git/GitCommandGitProject.ts"
+                },
+                "argumentValue": "context",
+                "why": {
+                    "kind": "Add Parameter",
+                    "functionWithAdditionalParameter": {
+                        "name": "GitCommandGitProject.cloned",
+                        "filePath": "src/project/git/GitCommandGitProject.ts"
+                    },
+                    "parameterType": "HandlerContext",
+                    "parameterName": "context",
+                    "why": "I want to use the context in here",
+                    "dummyValue": "{} as HandlerContext"
+                }
+            },
+            {
+                "kind": "Pass Dummy In Tests",
+                "functionWithAdditionalParameter": {
+                    "name": "GitCommandGitProject.cloned",
+                    "filePath": "src/project/git/GitCommandGitProject.ts"
+                },
+                "dummyValue": "{} as HandlerContext",
+                "why": {
+                    "kind": "Add Parameter",
+                    "functionWithAdditionalParameter": {
+                        "name": "GitCommandGitProject.cloned",
+                        "filePath": "src/project/git/GitCommandGitProject.ts"
+                    },
+                    "parameterType": "HandlerContext",
+                    "parameterName": "context",
+                    "why": "I want to use the context in here",
+                    "dummyValue": "{} as HandlerContext"
+                }
+            },
+            {
+                "kind": "Pass Dummy In Tests",
+                "functionWithAdditionalParameter": {
+                    "name": "gitHubRepoLoader",
+                    "filePath": "src/gitHubRepoLoader.ts"
+                },
+                "dummyValue": "{} as HandlerContext",
+                "why": {
+                    "kind": "Add Parameter",
+                    "functionWithAdditionalParameter": {
+                        "name": "gitHubRepoLoader",
+                        "filePath": "src/gitHubRepoLoader.ts"
+                    },
+                    "parameterType": "HandlerContext",
+                    "parameterName": "context",
+                    "dummyValue": "{} as HandlerContext",
+                    "why": {
+                        "kind": "Add Parameter",
+                        "functionWithAdditionalParameter": {
+                            "name": "GitCommandGitProject.cloned",
+                            "filePath": "src/project/git/GitCommandGitProject.ts"
+                        },
+                        "parameterType": "HandlerContext",
+                        "parameterName": "context",
+                        "why": "I want to use the context in here",
+                        "dummyValue": "{} as HandlerContext"
+                    }
+                }
+            }
+        ];
+        const thisProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/before");
+        const mutableProject = InMemoryProject.of(thisProject.findFileSync("src/gitHubRepoLoader.ts"));
+
+        const resultProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/after");
+
+        implement(mutableProject, instructions[0])
+            .then((report) => mutableProject.flush().then(() => report))
+            .then(report => {
+
+                const modified = mutableProject.findFileSync("src/gitHubRepoLoader.ts").getContentSync();
+                const expected = resultProject.findFileSync("src/gitHubRepoLoader.ts").getContentSync();
+
+                console.log(modified);
+                assert.equal(modified, expected, modified); //  there is one difference we don't cover
+
+        }).then(() => done(), done)
+
     }).timeout(20000)
 });
 
