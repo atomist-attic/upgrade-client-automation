@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 import { Project } from "@atomist/automation-client/project/Project";
-import { BranchCommit, EditMode, PullRequest } from "@atomist/automation-client/operations/edit/editModes";
-import { CommandHandler, HandleCommand, HandlerContext, logger, success } from "@atomist/automation-client";
+import { HandlerContext, logger } from "@atomist/automation-client";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 
@@ -24,45 +23,9 @@ import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
+import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
 import stringify = require("json-stringify-safe");
 import Requirement = AddParameter.Requirement;
-import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
-import { BaseEditorParameters } from "@atomist/automation-client/operations/edit/BaseEditorParameters";
-import { editRepo } from "@atomist/automation-client/operations/support/editorUtils";
-import { editOne } from "@atomist/automation-client/operations/edit/editAll";
-import { GitHubRepoRef } from "@atomist/automation-client/operations/common/GitHubRepoRef";
-
-const saveUpgradeToGitHub: EditMode = new PullRequest("upgrade-to-0-5",
-    "Pass context in to anything that clones");
-
-
-@CommandHandler("Upgrade to 0.5.0, compensating for breaking changes", "pass context to clone")
-export class UpgradeTo0_5 implements HandleCommand {
-
-    freshParametersInstance() {
-        return new BaseEditorParameters()
-    };
-
-    public handle(ctx: HandlerContext, params: BaseEditorParameters): Promise<void> {
-        const editor = passContextToFunction({
-            name: "GitCommandGitProject.cloned",
-            filePath: "src/project/git/GitCommandGitProject.ts",
-        })
-
-        return editOne(ctx, { token: params.githubToken }, editor, saveUpgradeToGitHub
-            , new GitHubRepoRef(params.owner, params.repo)).then(result => {
-                const report = (result as MySpecialEditReport).addParameterReport;
-                const more = report.unimplemented.length === 0 ? "" : ` Unable to implement these: ` +
-                    report.unimplemented.map(m => stringify(m, null, 2)).join("\n");
-                // really I need to put this on the PR
-                return ctx.messageClient.respond("Whew. I did a thing." + more)
-            },
-        );
-
-
-    }
-
-}
 
 
 export interface MySpecialEditReport extends EditResult {
