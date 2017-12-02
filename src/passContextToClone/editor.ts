@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 import { Project } from "@atomist/automation-client/project/Project";
-import { BranchCommit } from "@atomist/automation-client/operations/edit/editModes";
-import { logger } from "@atomist/automation-client";
+import { BranchCommit, EditMode, PullRequest } from "@atomist/automation-client/operations/edit/editModes";
+import { CommandHandler, HandleCommand, HandlerContext, logger, success } from "@atomist/automation-client";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 
@@ -26,18 +26,57 @@ import * as _ from "lodash";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import stringify = require("json-stringify-safe");
 import Requirement = AddParameter.Requirement;
+import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
+import { BaseEditorParameters } from "@atomist/automation-client/operations/edit/BaseEditorParameters";
+import { editRepo } from "@atomist/automation-client/operations/support/editorUtils";
+import { editOne } from "@atomist/automation-client/operations/edit/editAll";
+import { GitHubRepoRef } from "@atomist/automation-client/operations/common/GitHubRepoRef";
 
-const saveUpgradeToGitHub: BranchCommit = {
-    branch: "pass-context-to-clone-atomist",
-    message: "in tests, pass a dummy context.",
-};
+const saveUpgradeToGitHub: EditMode = new PullRequest("upgrade-to-0-5",
+    "Pass context in to anything that clones");
 
-export function passContextToFunction(functionWeWant: string,
-                                      filePath: string): (p: Project) => Promise<AddParameter.Report> {
+
+@CommandHandler("Upgrade to 0.5.0, compensating for breaking changes", "pass context to clone")
+export class UpgradeTo0_5 implements HandleCommand {
+
+    freshParametersInstance() {
+        return new BaseEditorParameters()
+    };
+
+    public handle(ctx: HandlerContext, params: BaseEditorParameters): Promise<void> {
+        const editor = passContextToFunction({
+            name: "GitCommandGitProject.cloned",
+            filePath: "src/project/git/GitCommandGitProject.ts",
+        })
+
+        return editOne(ctx, { token: params.githubToken }, editor, saveUpgradeToGitHub
+            , new GitHubRepoRef(params.owner, params.repo)).then(result => {
+                const report = (result as MySpecialEditReport).addParameterReport;
+                const more = report.unimplemented.length === 0 ? "" : ` Unable to implement these: ` +
+                    report.unimplemented.map(m => stringify(m, null, 2)).join("\n");
+                // really I need to put this on the PR
+                return ctx.messageClient.respond("Whew. I did a thing." + more)
+            },
+        );
+
+
+    }
+
+}
+
+
+export interface MySpecialEditReport extends EditResult {
+    addParameterReport: AddParameter.Report
+}
+
+export function passContextToFunction(params: {
+    name: string,
+    filePath: string
+}): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
         const originalRequirement: Requirement = {
             kind: "Add Parameter",
-            functionWithAdditionalParameter: { name: functionWeWant, filePath },
+            functionWithAdditionalParameter: params,
             parameterType: "HandlerContext",
             parameterName: "context",
             why: "I want to use the context in here",
@@ -56,7 +95,10 @@ export function passContextToFunction(functionWeWant: string,
                             .concat(consequences)
                             .concat(moreConsequences)))
                     .then(reqs => implementInSequenceWithFlushes(p, reqs));
-            });
+            }).then(report => ({
+                ...successfulEdit(p, true),
+                addParameterReport: report,
+            }));
     }
 }
 
@@ -157,7 +199,7 @@ export namespace AddParameter {
                 return _.flatMap(matches, enclosingFunction => {
                     const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
 
-                    const filePath = (enclosingFunction as any).sourceFile.fileName;
+                    const filePath = (enclosingFunction as any).sourceFile.fileName; // TODO: what I really want is the path
                     const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
                     const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
 
@@ -195,24 +237,6 @@ export namespace AddParameter {
                     }
                 });
             })
-            // in tests, pass a dummy value.
-            .then(srcRequirements => findMatches(project, TypeScriptES6FileParser, "test/**/*.ts",
-                `${innerExpression}`)
-                .then(matches => {
-                    return _.flatMap(matches, enclosingFunction => {
-                        const filePath = (enclosingFunction as any).sourceFile.fileName;
-                        const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
-                        const instruction: PassArgumentRequirement = {
-                            kind: "Pass Argument",
-                            enclosingFunction: { name: enclosingFunctionName, filePath },
-                            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                            argumentValue: requirement.dummyValue,
-                        };
-                        return [instruction];
-
-                    });
-                })
-                .then(testRequirements => srcRequirements.concat(testRequirements)))
     }
 
     export function implement(project: Project, requirement: Requirement): Promise<Report> {
@@ -238,7 +262,7 @@ export namespace AddParameter {
 
         return findMatches(project,
             TypeScriptES6FileParser,
-            requirement.functionWithAdditionalParameter.filePath,
+            "**/" + requirement.functionWithAdditionalParameter.filePath,
             fullPathExpression)
             .then(mm => applyPassArgument(mm, requirement));
     }
@@ -270,28 +294,44 @@ export namespace AddParameter {
     function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
 
         const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
-        return findMatches(project, TypeScriptES6FileParser, requirement.functionWithAdditionalParameter.filePath,
-            functionDeclarationExpression)
-            .then(matches => {
-                if (matches.length === 0) {
-                    logger.warn("Found 0 function declarations called " +
-                        requirement.functionWithAdditionalParameter.name + " in " +
-                        requirement.functionWithAdditionalParameter.filePath);
-                    return reportUnimplemented(requirement, "Function declaration not found");
-                } else if (1 < matches.length) {
-                    logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
-                    return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
-                } else {
-                    const enclosingFunction = matches[0];
-                    const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+        return updateTests(project, requirement)
+            .then(() =>
+                findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
+                    functionDeclarationExpression)
+                    .then(matches => {
+                        if (matches.length === 0) {
+                            logger.warn("Found 0 function declarations called " +
+                                requirement.functionWithAdditionalParameter.name + " in " +
+                                requirement.functionWithAdditionalParameter.filePath);
+                            return reportUnimplemented(requirement, "Function declaration not found");
+                        } else if (1 < matches.length) {
+                            logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
+                            return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
+                        } else {
+                            const enclosingFunction = matches[0];
+                            const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
 
-                    const newValue = enclosingFunction.$value.replace(
-                        new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
-                        `${enclosingFunctionName}(${requirement.parameterName}: ${requirement.parameterType}, `);
-                    enclosingFunction.$value = newValue;
-                    return emptyReport;
-                }
-            });
+                            const newValue = enclosingFunction.$value.replace(
+                                new RegExp(enclosingFunctionName + "\\s*\\(", "g"),
+                                `${enclosingFunctionName}(${requirement.parameterName}: ${requirement.parameterType}, `);
+                            enclosingFunction.$value = newValue;
+                            return emptyReport;
+                        }
+                    }));
+    }
+
+    function updateTests(project: Project, requirement: AddParameterRequirement): Promise<void> {
+        return findMatches(project, TypeScriptES6FileParser, "test/**/*.ts",
+            functionCallPathExpression(requirement.functionWithAdditionalParameter.name)).then(matches => {
+            matches.map(functionCall => {
+                const newValue = functionCall.$value.replace(
+                    new RegExp(requirement.functionWithAdditionalParameter.name + "\\s*\\(", "g"),
+                    `${requirement.functionWithAdditionalParameter.name}(${requirement.dummyValue}, `);
+                functionCall.$value = newValue;
+                return emptyReport;
+            })
+        })
+
     }
 
     function childrenNamed(parent: TreeNode, name: string) {

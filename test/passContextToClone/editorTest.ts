@@ -56,13 +56,13 @@ describe("editor to pass the context into the cloned method", () => {
         const functionWeWant = "GitCommandGitProject.cloned";
 
         const input = InMemoryProject.of({ path: "test/something.ts", content: OldTestCode });
-        passContextToFunction(functionWeWant, "src/project/git/GitCommandGitProject.ts")(input)
+        passContextToFunction({ name: functionWeWant, filePath: "src/project/git/GitCommandGitProject.ts" })(input)
             .then(report => input.findFile("test/something.ts"))
             .then(f => f.getContent())
             .then(newTestCode => {
                 const wanted = /cloned\({} as HandlerContext,/g;
                 const m = getAllMatches(wanted, newTestCode);
-                assert.equal(m.length,2, newTestCode);
+                assert.equal(m.length, 2, newTestCode);
             }).then(() => done(), done);
     });
 });
@@ -80,20 +80,18 @@ describe("please add context to the call", () => {
 
         const functionWeWant = "InHere.giveMeYourContext";
 
-        passContextToFunction(functionWeWant, "src/CodeThatUsesIt.ts")(mutableProject)
+        passContextToFunction({ name: functionWeWant, filePath: "src/CodeThatUsesIt.ts" })(mutableProject)
             .then(report => {
                 const modified = mutableProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
-                console.log("Report: " + stringify(report));
-                assert.equal(report.unimplemented.length, 1, stringify(report, null, 2));
-               // assert.equal(modified, expected, modified); //  there is one difference we don't cover
+                console.log(modified);
+                assert.equal(report.addParameterReport.unimplemented.length, 1, stringify(report, null, 2));
+                // assert.equal(modified, expected, modified); //  there is one difference we don't cover
             }).then(() => done(), done);
     });
 
-    it("detects changes across files", () => {
-
-    })
+    it("detects changes across files")
 
 });
 
@@ -105,10 +103,13 @@ describe("detection of consequences", () => {
         findConsequences(thisProject,
             {
                 "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {name: "exportedDoesNotYetHaveContext", filePath: "src/CodeThatUsesIt.ts"},
+                "functionWithAdditionalParameter": {
+                    name: "exportedDoesNotYetHaveContext",
+                    filePath: "src/CodeThatUsesIt.ts",
+                },
                 "parameterType": "HandlerContext",
                 "parameterName": "context",
-                "dummyValue": "{},"
+                "dummyValue": "{},",
             }).then(consequences => {
             assert.equal(consequences.length, 2, stringify(consequences))
         })

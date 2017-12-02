@@ -17,7 +17,7 @@
 import { Configuration } from "@atomist/automation-client/configuration";
 import * as appRoot from "app-root-path";
 import { BeginReleaseHandler } from "./prepareRelease/command";
-import { upgradeTo0_5 } from "./passContextToClone/editor";
+import { UpgradeTo0_5 } from "./passContextToClone/editor";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -30,7 +30,7 @@ export const configuration: Configuration = {
     teamIds: ["T29E48P34"], // <-- run @atomist pwd in your slack team to obtain the team id
     commands: [
         BeginReleaseHandler,
-        upgradeTo0_5,
+        () => new UpgradeTo0_5(),
     ],
     token,
     http: {
