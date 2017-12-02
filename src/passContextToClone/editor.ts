@@ -52,18 +52,19 @@ export function passContextToFunction(functionWeWant: string): (p: Project) => P
             parameterName: "context",
             why: "I want to use the context in here",
         };
+
+        const originalRequirementInArray: Requirement[] = [originalRequirement];
         return AddParameter.findConsequences(p, originalRequirement)
             .then((consequences: Requirement[]) => {
                 return Promise.all(consequences.map(r =>
-                    AddParameter.findConsequences(p, r)))
+                    AddParameter.findConsequences(p, r))) // todo: this should be recursive, this is too limited
                     .then(arrayOfArrays =>
                         _.flatten(arrayOfArrays))
-                    .then(moreConsequences => {
-                        const originalRequirementInArray: Requirement[] = [originalRequirement];
-                        const reqs =
-                            originalRequirementInArray.concat(consequences).concat(moreConsequences);
-                        return implementInSequenceWithFlushes(p, reqs);
-                    });
+                    .then(moreConsequences => AddParameter.distinct(
+                        originalRequirementInArray
+                            .concat(consequences)
+                            .concat(moreConsequences)))
+                    .then(reqs => implementInSequenceWithFlushes(p, reqs));
             });
     }
 }
@@ -137,7 +138,7 @@ export namespace AddParameter {
         kind: "Pass Argument"
         enclosingFunction: FunctionIdentifier,
         functionWithAdditionalParameter: FunctionIdentifier;
-        argumentName: string;
+        argumentValue: string;
         why?: any;
     }
 
@@ -157,7 +158,7 @@ export namespace AddParameter {
 
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
 
-        return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts",
+        return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts",
             `//FunctionDeclaration[${innerExpression}]`)
             .then(matches => {
                 return _.flatMap(matches, enclosingFunction => {
@@ -176,7 +177,7 @@ export namespace AddParameter {
                             kind: "Pass Argument",
                             enclosingFunction: enclosingFunctionName,
                             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                            argumentName: identifier.$value,
+                            argumentValue: identifier.$value,
                         };
                         return [instruction];
                     } else {
@@ -193,7 +194,7 @@ export namespace AddParameter {
                                 kind: "Pass Argument",
                                 enclosingFunction: enclosingFunctionName,
                                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                                argumentName: requirement.parameterName,
+                                argumentValue: requirement.parameterName,
                             } as PassArgumentRequirement];
                     }
                 });
@@ -209,7 +210,7 @@ export namespace AddParameter {
     }
 
     function functionCallPathExpression(fn: string) {
-       return fn.match(/\./) ?
+        return fn.match(/\./) ?
             `//CallExpression[/PropertyAccessExpression[@value='${fn}']]` :
             `//CallExpression[/Identifier[@value='${fn}']]`;
     }
@@ -221,17 +222,17 @@ export namespace AddParameter {
 
         const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`
 
-        return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
+        return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts", // TODO: get filename
             fullPathExpression)
             .then(matches => {
                 if (matches.length === 0) {
-                    logger.warn("No matches for " + fullPathExpression + " in " + project.findFileSync("CodeThatUsesIt.ts").getContentSync());
+                    logger.warn("No matches for " + fullPathExpression + " in " + project.findFileSync("src/**/*.ts").getContentSync());
                     return reportUnimplemented(requirement, "Function not found");
                 } else {
                     matches.map(enclosingFunction => {
                         const newValue = enclosingFunction.$value.replace(
                             new RegExp(requirement.functionWithAdditionalParameter + "\\s*\\(", "g"),
-                            requirement.functionWithAdditionalParameter + `(${requirement.argumentName}, `);
+                            requirement.functionWithAdditionalParameter + `(${requirement.argumentValue}, `);
                         enclosingFunction.$value = newValue;
                     });
                     return emptyReport;
@@ -250,7 +251,7 @@ export namespace AddParameter {
     function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
 
         const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
-        return findMatches(project, TypeScriptES6FileParser, "CodeThatUsesIt.ts", // TODO: get filename
+        return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts", // TODO: get filename
             functionDeclarationExpression)
             .then(matches => {
                 if (matches.length === 0) {

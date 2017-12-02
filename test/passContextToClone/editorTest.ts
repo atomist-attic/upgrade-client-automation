@@ -62,10 +62,6 @@ describe("editor to pass the context into the cloned method", () => {
                 assert(m.length === 2, stringify(m));
             }).then(() => done(), done);
     });
-
-    it("adds context as the first argument to GitCommandGitProject.cloned");
-
-    it("tries to get the variable name right");
 });
 
 
@@ -74,7 +70,7 @@ describe("please add context to the call", () => {
     it("detects context in the calling function", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
-        const mutableProject = InMemoryProject.of(thisProject.findFileSync("CodeThatUsesIt.ts"));
+        const mutableProject = InMemoryProject.of(thisProject.findFileSync("src/CodeThatUsesIt.ts"));
 
         const resultProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/after");
@@ -83,12 +79,12 @@ describe("please add context to the call", () => {
 
         passContextToFunction(functionWeWant)(mutableProject)
             .then(report => {
-                const modified = mutableProject.findFileSync("CodeThatUsesIt.ts").getContentSync();
-                const expected = resultProject.findFileSync("CodeThatUsesIt.ts").getContentSync();
+                const modified = mutableProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
+                const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
                 console.log("Report: " + stringify(report));
                 assert.equal(report.unimplemented.length, 1, stringify(report, null, 2));
-               // assert.equal(modified, expected, modified); //  || report.unimplemented.length > 0
+               // assert.equal(modified, expected, modified); //  there is one difference we don't cover
             }).then(() => done(), done);
     });
 
@@ -121,7 +117,7 @@ describe("detection of consequences", () => {
 
         const innerExpression = `/Identifier[@value='usesAFunctionThatDoesNotHaveContext']`;
 
-        findMatches(thisProject, TypeScriptES6FileParser, "CodeThatUsesIt.ts",
+        findMatches(thisProject, TypeScriptES6FileParser, "src/CodeThatUsesIt.ts",
             `//FunctionDeclaration[${innerExpression}]`)
             .then(matches => {
                     matches.forEach(m =>
