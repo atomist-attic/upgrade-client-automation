@@ -17,7 +17,7 @@
 import "mocha";
 import * as assert from "power-assert";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
-import { AddImport, AddParameter, passContextToFunction } from "../../src/passContextToClone/editor";
+import { AddParameter, passContextToFunction } from "../../src/passContextToClone/editor";
 import * as stringify from "json-stringify-safe";
 
 import * as appRoot from "app-root-path";
@@ -245,39 +245,6 @@ describe("Adding a parameter", () => {
     });
 
 
-});
-
-describe("add import", () => {
-    it("Adds a name to an existing import", done => {
-        const input = InMemoryProject.of({
-            path: "src/Whatever.ts", content: `import * from "foo";
-import { Stuff } from "@atomist/automation-client";
-
-const blah = "blah"
-`,
-        });
-        printStructureOfFile(input, "src/Whatever.ts");
-        AddImport.addImport(input, "src/Whatever.ts",
-            { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" })
-            .then(changed => input.flush().then(() => changed))
-            .then(changed => {
-
-                const after = input.findFileSync("src/Whatever.ts").getContentSync();
-                assert(after.includes(`import { HandlerContext, Stuff } from "@atomist/automation-client"`), after);
-                assert(changed)
-            }).then(() => done(), done)
-    });
-
-    describe("relative import", () => {
-        it("uses a relative import", () => {
-           const input = InMemoryProject.of(
-               { path: "src/OtherFileInSameDir.ts", content: "const blah;"});
-
-           AddImport.addImport(input, "src/OtherFileInSameDir.ts",
-               {kind: "local", name: "HandlerContext", localPath: "src/HandlerContext"})
-
-        });
-    });
 });
 
 function printMatch(m: TreeNode): string[] {

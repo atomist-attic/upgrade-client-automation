@@ -27,6 +27,7 @@ import { EditResult, successfulEdit } from "@atomist/automation-client/operation
 import stringify = require("json-stringify-safe");
 import Requirement = AddParameter.Requirement;
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
+import { AddImport } from "./manipulateImports";
 
 
 export interface MySpecialEditReport extends EditResult {
@@ -369,63 +370,4 @@ export namespace AddParameter {
     function childrenNamed(parent: TreeNode, name: string) {
         return parent.$children.filter(child => child.$name === name);
     }
-}
-export namespace AddImport {
-
-    export type ImportIdentifier = LibraryImport | LocalImport
-
-    export interface LibraryImport {
-        kind: "library",
-        name: string,
-        location: string
-    }
-
-    function isLibraryImport(i: ImportIdentifier): i is LibraryImport {
-        return i.kind === "library"
-    }
-
-    export interface LocalImport {
-        kind: "local",
-        name: string,
-        localPath: string
-    }
-
-    function calculateRelativePath(from: string, to: string) {
-        return to;
-    }
-
-    export function addImport(project: Project, path: string, what: ImportIdentifier): Promise<boolean> {
-        return findMatches(project, TypeScriptES6FileParser, path, "/SourceFile").then(sources => {
-            const source = sources[0];
-            const existingImport = source.evaluateExpression(
-                `//ImportDeclaration//Identifier[@value='${what.name}']`);
-            if (existingImport && 0 < existingImport.length) {
-                logger.debug("Import already exists: " + existingImport[0].$value);
-                // import found. Not handled: the same identifier is imported from elsewhere.
-                return false;
-            }
-
-            const location = isLibraryImport(what) ? what.location : calculateRelativePath(path, what.localPath);
-
-            const locationImportMatches = source.evaluateExpression(
-                `//ImportDeclaration[//StringLiteral[@value='${location}']]`);
-            if (locationImportMatches && 0 < locationImportMatches.length) {
-                const locationImport = locationImportMatches[0];
-                // not handling: *
-                const newValue = locationImport.$value.replace(
-                    /{/,
-                    `{ ${what.name},`);
-                locationImport.$value = newValue;
-                logger.debug("Adding to import. New value: " + newValue);
-                return true;
-            }
-            // No existing import to modify. Add one.
-            const newStatement = `import { ${what.name} } from "${location}";\n`;
-
-            logger.debug("adding new import statement: " + newStatement);
-            source.$value = newStatement + source.$value;
-            return true;
-        })
-    }
-
 }
