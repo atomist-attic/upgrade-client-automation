@@ -29,6 +29,8 @@ import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 import implement = AddParameter.implement;
 import Requirement = AddParameter.Requirement;
+import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
+import isAddParameterRequirement = AddParameter.isAddParameterRequirement;
 
 const OldTestCode = `
     const getAClone = (repoName: string = RepoName) => {
@@ -75,7 +77,9 @@ describe("please add context to the call", () => {
     it("detects context in the calling function", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
-        const mutableProject = InMemoryProject.of(thisProject.findFileSync("src/CodeThatUsesIt.ts"));
+        const mutableProject = InMemoryProject.of(
+            thisProject.findFileSync("src/CodeThatUsesIt.ts"),
+            thisProject.findFileSync("src/AdditionalFileThatUsesStuff.ts"));
 
         const resultProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/after");
@@ -84,11 +88,19 @@ describe("please add context to the call", () => {
 
         passContextToFunction({ name: functionWeWant, filePath: "src/CodeThatUsesIt.ts" })(mutableProject)
             .then(report => {
+                const modified = mutableProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
+                const expected = resultProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
+
+                console.log(modified);
+                assert.equal(modified, expected, modified); //  there is one difference we don't cover
+                return report;
+            })
+            .then(report => {
                 const modified = mutableProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
                 console.log(modified);
-                assert.equal(report.addParameterReport.unimplemented.length, 0, stringify(report, null, 2));
+                assert.equal(report.addParameterReport.unimplemented.length, 1, stringify(report, null, 2));
                 assert.equal(report.addParameterReport.implemented.length, 9, stringify(report, null, 2));
                 assert.equal(modified, expected, modified); //  there is one difference we don't cover
             }).then(() => done(), done);
@@ -98,157 +110,43 @@ describe("please add context to the call", () => {
 
 });
 
-describe("the thing i actually want to do", () => {
+describe("more files, more levels", () => {
     it("finds a reasonable number of consequences", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
         findConsequences(thisProject,
-            {
+            [{
                 "kind": "Add Parameter",
                 "functionWithAdditionalParameter": {
-                    name: "GitCommandGitProject.cloned",
-                    filePath: "src/project/git/GitCommandGitProject.ts",
+                    name: "InHere.giveMeYourContext",
+                    filePath: "src/CodeThatUsesIt.ts",
                 },
                 "parameterType": "HandlerContext",
                 "parameterName": "context",
                 "dummyValue": "{},",
-            }).then(consequences => {
+            }]).then(consequences => {
+
+            const addParameterAtHigherLevel = consequences.find(c =>
+                isAddParameterRequirement(c) &&
+                c.functionWithAdditionalParameter.name === "usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext");
+
+            assert(addParameterAtHigherLevel, stringify(consequences.filter(isAddParameterRequirement), null, 2));
+
+            const addParameterAtEvenHigherLevel = consequences.find(c =>
+                isAddParameterRequirement(c) &&
+                c.functionWithAdditionalParameter.name === "andEvenMoreStuff");
+
+            assert(addParameterAtEvenHigherLevel);
 
             assert.equal(consequences.length,
-                2, // not really i just want it to print them
+                17, // plausible
                 stringify(consequences, null, 2))
         })
             .then(() => done(), done);
     }).timeout(20000)
 
-    it("doesn't fuck the fucking shit up 2", done => {
-        const thisProject = new NodeFsLocalProject("automation-client",
-            appRoot.path + "/test/passContextToClone/resources/before");
 
-        passContextToFunction({ name: "GitCommandGitProject.cloned",
-            filePath: "src/project/git/GitCommandGitProject.ts"})(thisProject)
-            .then(result => {
-                console.log(stringify(result, null, 2))
-            })
-            .then(() => done(), done);
-    }).timeout(20000)
-
-    it("can carry out this instruction", done => {
-        const instructions: Requirement[] = [
-            {
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    "name": "gitHubRepoLoader",
-                    "filePath": "src/gitHubRepoLoader.ts"
-                },
-                "parameterType": "HandlerContext",
-                "parameterName": "context",
-                "dummyValue": "{} as HandlerContext",
-                "why": {
-                    "kind": "Add Parameter",
-                    "functionWithAdditionalParameter": {
-                        "name": "GitCommandGitProject.cloned",
-                        "filePath": "src/project/git/GitCommandGitProject.ts"
-                    },
-                    "parameterType": "HandlerContext",
-                    "parameterName": "context",
-                    "why": "I want to use the context in here",
-                    "dummyValue": "{} as HandlerContext"
-                }
-            },
-            {
-                "kind": "Pass Argument",
-                "enclosingFunction": {
-                    "name": "gitHubRepoLoader",
-                    "filePath": "src/gitHubRepoLoader.ts"
-                },
-                "functionWithAdditionalParameter": {
-                    "name": "GitCommandGitProject.cloned",
-                    "filePath": "src/project/git/GitCommandGitProject.ts"
-                },
-                "argumentValue": "context",
-                "why": {
-                    "kind": "Add Parameter",
-                    "functionWithAdditionalParameter": {
-                        "name": "GitCommandGitProject.cloned",
-                        "filePath": "src/project/git/GitCommandGitProject.ts"
-                    },
-                    "parameterType": "HandlerContext",
-                    "parameterName": "context",
-                    "why": "I want to use the context in here",
-                    "dummyValue": "{} as HandlerContext"
-                }
-            },
-            {
-                "kind": "Pass Dummy In Tests",
-                "functionWithAdditionalParameter": {
-                    "name": "GitCommandGitProject.cloned",
-                    "filePath": "src/project/git/GitCommandGitProject.ts"
-                },
-                "dummyValue": "{} as HandlerContext",
-                "why": {
-                    "kind": "Add Parameter",
-                    "functionWithAdditionalParameter": {
-                        "name": "GitCommandGitProject.cloned",
-                        "filePath": "src/project/git/GitCommandGitProject.ts"
-                    },
-                    "parameterType": "HandlerContext",
-                    "parameterName": "context",
-                    "why": "I want to use the context in here",
-                    "dummyValue": "{} as HandlerContext"
-                }
-            },
-            {
-                "kind": "Pass Dummy In Tests",
-                "functionWithAdditionalParameter": {
-                    "name": "gitHubRepoLoader",
-                    "filePath": "src/gitHubRepoLoader.ts"
-                },
-                "dummyValue": "{} as HandlerContext",
-                "why": {
-                    "kind": "Add Parameter",
-                    "functionWithAdditionalParameter": {
-                        "name": "gitHubRepoLoader",
-                        "filePath": "src/gitHubRepoLoader.ts"
-                    },
-                    "parameterType": "HandlerContext",
-                    "parameterName": "context",
-                    "dummyValue": "{} as HandlerContext",
-                    "why": {
-                        "kind": "Add Parameter",
-                        "functionWithAdditionalParameter": {
-                            "name": "GitCommandGitProject.cloned",
-                            "filePath": "src/project/git/GitCommandGitProject.ts"
-                        },
-                        "parameterType": "HandlerContext",
-                        "parameterName": "context",
-                        "why": "I want to use the context in here",
-                        "dummyValue": "{} as HandlerContext"
-                    }
-                }
-            }
-        ];
-        const thisProject = new NodeFsLocalProject("automation-client",
-            appRoot.path + "/test/passContextToClone/resources/before");
-        const mutableProject = InMemoryProject.of(thisProject.findFileSync("src/gitHubRepoLoader.ts"));
-
-        const resultProject = new NodeFsLocalProject("automation-client",
-            appRoot.path + "/test/passContextToClone/resources/after");
-
-        implement(mutableProject, instructions[0])
-            .then((report) => mutableProject.flush().then(() => report))
-            .then(report => {
-
-                const modified = mutableProject.findFileSync("src/gitHubRepoLoader.ts").getContentSync();
-                const expected = resultProject.findFileSync("src/gitHubRepoLoader.ts").getContentSync();
-
-                console.log(modified);
-                assert.equal(modified, expected, modified); //  there is one difference we don't cover
-
-        }).then(() => done(), done)
-
-    }).timeout(20000)
 });
 
 describe("detection of consequences", () => {
@@ -257,7 +155,7 @@ describe("detection of consequences", () => {
             appRoot.path + "/test/passContextToClone/resources/before");
 
         findConsequences(thisProject,
-            {
+            [{
                 "kind": "Add Parameter",
                 "functionWithAdditionalParameter": {
                     name: "exportedDoesNotYetHaveContext",
@@ -266,8 +164,8 @@ describe("detection of consequences", () => {
                 "parameterType": "HandlerContext",
                 "parameterName": "context",
                 "dummyValue": "{},",
-            }).then(consequences => {
-            assert.equal(consequences.length, 3, stringify(consequences))
+            }]).then(consequences => {
+            assert.equal(consequences.length, 8, stringify(consequences))
         })
             .then(() => done(), done);
     });

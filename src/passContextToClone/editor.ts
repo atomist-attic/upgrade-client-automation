@@ -47,20 +47,9 @@ export function passContextToFunction(params: {
             dummyValue: "{} as HandlerContext",
         };
 
-        return AddParameter.findConsequences(p, originalRequirement)
-            .then((consequences: Requirement[]) => {
-                return Promise.all(consequences.map(r =>
-                    AddParameter.findConsequences(p, r))) // todo: this should be recursive, this is too limited
-                    .then(arrayOfArrays => _.flatten(arrayOfArrays))
-                    .then(moreConsequences => AddParameter.distinct(
-                        consequences
-                            .concat(moreConsequences)))
-                    .then(reqs => {
-                        logger.info("Reqs: " + stringify(reqs, null, 2));
-                        return reqs;
-                    })
-                    .then(reqs => implementInSequenceWithFlushes(p, reqs));
-            }).then(report => {
+        return AddParameter.findConsequences(p, [originalRequirement])
+            .then(reqs => implementInSequenceWithFlushes(p, reqs))
+            .then(report => {
                 logger.info("Report: " + stringify(report, null, 2));
                 return {
                     ...successfulEdit(p, report.implemented.length > 0),
@@ -128,11 +117,26 @@ export namespace AddParameter {
         let result: Requirement[] = [];
 
         for (const r of requirements) {
-            if (!result.some(other => stringify(other) === stringify(r))) {
+            if (!result.some(other => sameRequirement(other, r))) {
                 result.push(r);
             }
         }
         return result;
+    }
+
+    function sameFunctionIdentifier(r1: FunctionIdentifier, r2: FunctionIdentifier) {
+        return r1.name === r2.name &&
+            r1.filePath === r2.filePath
+
+    }
+
+
+    function sameRequirement(r1: Requirement, r2: Requirement): boolean {
+        return r1.kind === r2.kind &&
+            sameFunctionIdentifier(r1.functionWithAdditionalParameter, r2.functionWithAdditionalParameter) &&
+            r1.functionWithAdditionalParameter.filePath === r2.functionWithAdditionalParameter.filePath &&
+            (!isPassArgumentRequirement(r1) ||
+                sameFunctionIdentifier(r1.enclosingFunction, (r2 as PassArgumentRequirement).enclosingFunction))
     }
 
     export interface AddParameterRequirement {
@@ -151,13 +155,19 @@ export namespace AddParameter {
         why?: any;
     }
 
-    function isAddDummyInTests(r: Requirement): r is PassDummyInTestsRequirement {
+    export function isAddDummyInTests(r: Requirement): r is PassDummyInTestsRequirement {
         return r.kind === "Pass Dummy In Tests";
     }
 
-    function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
+   export function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
         return r.kind === "Add Parameter";
     }
+
+
+   export function isPassArgumentRequirement(r: Requirement): r is PassArgumentRequirement {
+        return r.kind === "Pass Argument";
+    }
+
 
     export interface PassArgumentRequirement {
         kind: "Pass Argument"
@@ -167,7 +177,7 @@ export namespace AddParameter {
         why?: any;
     }
 
-    export function findConsequences(project: Project, requirement: Requirement): Promise<Requirement[]> {
+    export function findConsequencesOfOne(project: Project, requirement: Requirement): Promise<Requirement[]> {
         if (isAddParameterRequirement(requirement)) {
             logger.info("Finding consequences of: " + stringify(requirement, null, 1));
             return findConsequencesOfAddParameter(project, requirement).then(consequences => {
@@ -179,11 +189,27 @@ export namespace AddParameter {
         }
     }
 
+    export function findConsequences(project: Project, unchecked: Requirement[],
+                                     checked: Requirement[] = []): Promise<Requirement[]> {
+        if (unchecked.length === 0) {
+            return Promise.resolve(checked);
+        }
+        const thisOne = unchecked.pop(); // mutation
+        if(checked.some(o => sameRequirement(o, thisOne))) {
+            logger.info("Already checked " + stringify(thisOne));
+            return findConsequences(project, unchecked, checked);
+        }
+        return findConsequencesOfOne(project, thisOne).then(theseReqs => {
+            checked.push(thisOne);
+            return findConsequences(project, unchecked.concat(theseReqs), checked)
+        });
+    }
+
     function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
         const passDummyInTests: PassDummyInTestsRequirement = {
             kind: "Pass Dummy In Tests",
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-            dummyValue: requirement.dummyValue
+            dummyValue: requirement.dummyValue,
         };
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter.name);
 
