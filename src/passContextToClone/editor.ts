@@ -41,7 +41,7 @@ export function passContextToFunction(params: {
         const originalRequirement: Requirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: params,
-            parameterType: { name: "HandlerContext", location: "@atomist/automation-client" },
+            parameterType: { kind: "local", name: "HandlerContext", localPath: "src/HandlerContext" },
             parameterName: "context",
             why: "I want to use the context in here",
             dummyValue: "{} as HandlerContext",
@@ -142,7 +142,7 @@ export namespace AddParameter {
     export interface AddParameterRequirement {
         kind: "Add Parameter";
         functionWithAdditionalParameter: FunctionIdentifier;
-        parameterType: { name: string; location: string };
+        parameterType: AddImport.ImportIdentifier;
         parameterName: string;
         dummyValue: string;
         why?: any;
@@ -338,44 +338,77 @@ export namespace AddParameter {
 
     function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
         const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
-        return addImport(project, requirement.functionWithAdditionalParameter.filePath, requirement.parameterType)
+        return AddImport.addImport(project,
+            requirement.functionWithAdditionalParameter.filePath,
+            requirement.parameterType)
             .then(() => findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
-            functionDeclarationExpression)
-            .then(matches => {
-                if (matches.length === 0) {
-                    logger.warn("Found 0 function declarations called " +
-                        requirement.functionWithAdditionalParameter.name + " in " +
-                        requirement.functionWithAdditionalParameter.filePath);
-                    return reportUnimplemented(requirement, "Function declaration not found");
-                } else if (1 < matches.length) {
-                    logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
-                    return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
-                } else {
-                    const functionDeclaration = matches[0];
-                    const identifier = requirement.functionWithAdditionalParameter.name;
+                functionDeclarationExpression)
+                .then(matches => {
+                    if (matches.length === 0) {
+                        logger.warn("Found 0 function declarations called " +
+                            requirement.functionWithAdditionalParameter.name + " in " +
+                            requirement.functionWithAdditionalParameter.filePath);
+                        return reportUnimplemented(requirement, "Function declaration not found");
+                    } else if (1 < matches.length) {
+                        logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
+                        return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
+                    } else {
+                        const functionDeclaration = matches[0];
+                        const identifier = requirement.functionWithAdditionalParameter.name;
 
-                    const newValue = functionDeclaration.$value.replace(
-                        new RegExp(identifier + "\\s*\\(", "g"),
-                        `${identifier}(${requirement.parameterName}: ${requirement.parameterType.name}, `);
-                    functionDeclaration.$value = newValue;
-                    return reportImplemented(requirement);
-                }
-            }));
+                        const newValue = functionDeclaration.$value.replace(
+                            new RegExp(identifier + "\\s*\\(", "g"),
+                            `${identifier}(${requirement.parameterName}: ${requirement.parameterType.name}, `);
+                        functionDeclaration.$value = newValue;
+                        return reportImplemented(requirement);
+                    }
+                }));
     }
 
-    export function addImport(project: Project, path: string, what: { name: string, location: string }): Promise<boolean> {
+
+    function childrenNamed(parent: TreeNode, name: string) {
+        return parent.$children.filter(child => child.$name === name);
+    }
+}
+export namespace AddImport {
+
+    export type ImportIdentifier = LibraryImport | LocalImport
+
+    export interface LibraryImport {
+        kind: "library",
+        name: string,
+        location: string
+    }
+
+    function isLibraryImport(i: ImportIdentifier): i is LibraryImport {
+        return i.kind === "library"
+    }
+
+    export interface LocalImport {
+        kind: "local",
+        name: string,
+        localPath: string
+    }
+
+    function calculateRelativePath(from: string, to: string) {
+        return to;
+    }
+
+    export function addImport(project: Project, path: string, what: ImportIdentifier): Promise<boolean> {
         return findMatches(project, TypeScriptES6FileParser, path, "/SourceFile").then(sources => {
             const source = sources[0];
             const existingImport = source.evaluateExpression(
                 `//ImportDeclaration//Identifier[@value='${what.name}']`);
             if (existingImport && 0 < existingImport.length) {
                 logger.debug("Import already exists: " + existingImport[0].$value);
-                // import found
+                // import found. Not handled: the same identifier is imported from elsewhere.
                 return false;
             }
 
+            const location = isLibraryImport(what) ? what.location : calculateRelativePath(path, what.localPath);
+
             const locationImportMatches = source.evaluateExpression(
-                `//ImportDeclaration[//StringLiteral[@value='${what.location}']]`);
+                `//ImportDeclaration[//StringLiteral[@value='${location}']]`);
             if (locationImportMatches && 0 < locationImportMatches.length) {
                 const locationImport = locationImportMatches[0];
                 // not handling: *
@@ -387,17 +420,12 @@ export namespace AddParameter {
                 return true;
             }
             // No existing import to modify. Add one.
-            const newStatement = `import { ${what.name} } from "${what.location}";\n`;
+            const newStatement = `import { ${what.name} } from "${location}";\n`;
 
             logger.debug("adding new import statement: " + newStatement);
             source.$value = newStatement + source.$value;
             return true;
         })
-    }
-
-
-    function childrenNamed(parent: TreeNode, name: string) {
-        return parent.$children.filter(child => child.$name === name);
     }
 
 }

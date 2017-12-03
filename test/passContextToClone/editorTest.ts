@@ -17,7 +17,7 @@
 import "mocha";
 import * as assert from "power-assert";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
-import { AddParameter, passContextToFunction } from "../../src/passContextToClone/editor";
+import { AddImport, AddParameter, passContextToFunction } from "../../src/passContextToClone/editor";
 import * as stringify from "json-stringify-safe";
 
 import * as appRoot from "app-root-path";
@@ -118,7 +118,7 @@ describe("more files, more levels", () => {
                     name: "InHere.giveMeYourContext",
                     filePath: "src/CodeThatUsesIt.ts",
                 },
-                "parameterType": { name: "HandlerContext", location: "@atomist/automation-client" },
+                "parameterType": {  kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
                 "parameterName": "context",
                 "dummyValue": "{},",
             }]).then(consequences => {
@@ -157,7 +157,7 @@ describe("detection of consequences", () => {
                     name: "exportedDoesNotYetHaveContext",
                     filePath: "src/CodeThatUsesIt.ts",
                 },
-                "parameterType": { name: "HandlerContext", location: "@atomist/automation-client" },
+                "parameterType": { kind: "library",  name: "HandlerContext", location: "@atomist/automation-client" },
                 "parameterName": "context",
                 "dummyValue": "{},",
             }]).then(consequences => {
@@ -217,7 +217,7 @@ describe("Adding a parameter", () => {
             functionWithAdditionalParameter: {
                 name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
             }, parameterName: "context",
-            parameterType: { name: "HandlerContext", location: "@atomist/automation-client" },
+            parameterType: {  kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
             dummyValue: "{}",
         }).then(changed => input.flush().then(() => changed))
             .then(report => {
@@ -234,7 +234,7 @@ describe("Adding a parameter", () => {
             functionWithAdditionalParameter: {
                 name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
             }, parameterName: "context",
-            parameterType: { name: "HandlerContext", location: "@atomist/automation-client" },
+            parameterType: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
             dummyValue: "{}",
         }).then(changed => input.flush().then(() => changed))
             .then(report => {
@@ -257,8 +257,8 @@ const blah = "blah"
 `,
         });
         printStructureOfFile(input, "src/Whatever.ts");
-        AddParameter.addImport(input, "src/Whatever.ts",
-            { name: "HandlerContext", location: "@atomist/automation-client" })
+        AddImport.addImport(input, "src/Whatever.ts",
+            { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" })
             .then(changed => input.flush().then(() => changed))
             .then(changed => {
 
@@ -266,6 +266,17 @@ const blah = "blah"
                 assert(after.includes(`import { HandlerContext, Stuff } from "@atomist/automation-client"`), after);
                 assert(changed)
             }).then(() => done(), done)
+    });
+
+    describe("relative import", () => {
+        it("uses a relative import", () => {
+           const input = InMemoryProject.of(
+               { path: "src/OtherFileInSameDir.ts", content: "const blah;"});
+
+           AddImport.addImport(input, "src/OtherFileInSameDir.ts",
+               {kind: "local", name: "HandlerContext", localPath: "src/HandlerContext"})
+
+        });
     });
 });
 
@@ -288,7 +299,7 @@ describe("actually run it", () => {
 
         passContextToFunction({
             name: "GitCommandGitProject.cloned",
-            filePath: "/Users/jessitron/code/atomist/automation-client-ts/src/project/git/GitCommandGitProject.ts"
+            filePath: "/Users/jessitron/code/atomist/automation-client-ts/src/project/git/GitCommandGitProject.ts",
         })(realProject)
             .then(() => done(), done)
     }).timeout(1000000);
