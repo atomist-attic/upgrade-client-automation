@@ -22,15 +22,11 @@ import * as stringify from "json-stringify-safe";
 
 import * as appRoot from "app-root-path";
 import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
-import findConsequences = AddParameter.findConsequences;
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
-import implement = AddParameter.implement;
-import Requirement = AddParameter.Requirement;
-import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
-import isAddParameterRequirement = AddParameter.isAddParameterRequirement;
+import { Project } from "@atomist/automation-client/project/Project";
 
 const OldTestCode = `
     const getAClone = (repoName: string = RepoName) => {
@@ -115,26 +111,26 @@ describe("more files, more levels", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        findConsequences(thisProject,
+        AddParameter.findConsequences(thisProject,
             [{
                 "kind": "Add Parameter",
                 "functionWithAdditionalParameter": {
                     name: "InHere.giveMeYourContext",
                     filePath: "src/CodeThatUsesIt.ts",
                 },
-                "parameterType": "HandlerContext",
+                "parameterType": { name: "HandlerContext", location: "@atomist/automation-client" },
                 "parameterName": "context",
                 "dummyValue": "{},",
             }]).then(consequences => {
 
             const addParameterAtHigherLevel = consequences.find(c =>
-                isAddParameterRequirement(c) &&
+                AddParameter.isAddParameterRequirement(c) &&
                 c.functionWithAdditionalParameter.name === "usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext");
 
-            assert(addParameterAtHigherLevel, stringify(consequences.filter(isAddParameterRequirement), null, 2));
+            assert(addParameterAtHigherLevel, stringify(consequences.filter(AddParameter.isAddParameterRequirement), null, 2));
 
             const addParameterAtEvenHigherLevel = consequences.find(c =>
-                isAddParameterRequirement(c) &&
+                AddParameter.isAddParameterRequirement(c) &&
                 c.functionWithAdditionalParameter.name === "andEvenMoreStuff");
 
             assert(addParameterAtEvenHigherLevel);
@@ -154,14 +150,14 @@ describe("detection of consequences", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        findConsequences(thisProject,
+        AddParameter.findConsequences(thisProject,
             [{
                 "kind": "Add Parameter",
                 "functionWithAdditionalParameter": {
                     name: "exportedDoesNotYetHaveContext",
                     filePath: "src/CodeThatUsesIt.ts",
                 },
-                "parameterType": "HandlerContext",
+                "parameterType": { name: "HandlerContext", location: "@atomist/automation-client" },
                 "parameterName": "context",
                 "dummyValue": "{},",
             }]).then(consequences => {
@@ -177,14 +173,78 @@ describe("detection of consequences", () => {
         const innerExpression = `/Identifier[@value='usesAFunctionThatDoesNotHaveContext']`;
 
         findMatches(thisProject, TypeScriptES6FileParser, "src/CodeThatUsesIt.ts",
-            `//FunctionDeclaration[${innerExpression}]`)
+            `/SourceFile`)
             .then(matches => {
-                    matches.forEach(m =>
-                        console.log(printMatch(m).join("\n")),
+                    matches.forEach(m => {
+                            console.log(printMatch(m).join("\n"));
+
+
+                            const source = matches[0];
+                            const existingImport = source.evaluateExpression(
+                                `//ImportDeclaration//Identifier[@value='HandlerContext']`);
+                            console.log("wtf does this return: " + existingImport.length)
+                        },
                     )
                 },
             ).then(() => done(), done);
 
+    })
+});
+
+function printStructureOfFile(project: Project, path: string) {
+    return findMatches(project, TypeScriptES6FileParser, path,
+        `/SourceFile`)
+        .then(matches => {
+            matches.forEach(m => {
+                console.log(printMatch(m).join("\n"));
+            })
+        });
+}
+
+function copyOfBefore() {
+    const thisProject = new NodeFsLocalProject("automation-client",
+        appRoot.path + "/test/passContextToClone/resources/before");
+    return InMemoryProject.of(
+        thisProject.findFileSync("src/CodeThatUsesIt.ts"),
+        thisProject.findFileSync("src/AdditionalFileThatUsesStuff.ts"));
+}
+
+describe("Adding an import", () => {
+    it("Adds an import file too", done => {
+        const input = copyOfBefore();
+        AddParameter.implement(input, {
+            kind: "Add Parameter",
+            functionWithAdditionalParameter: {
+                name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
+            }, parameterName: "context",
+            parameterType: { name: "HandlerContext", location: "@atomist/automation-client" },
+            dummyValue: "{}",
+        }).then(changed => input.flush().then(() => changed))
+            .then(report => {
+                const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
+                assert(after.includes(
+                    `import { HandlerContext } from "@atomist/automation-client"`), after)
+            }).then(() => done(), done)
+    })
+
+    it("Adds a name to an existing import", done => {
+        const input = InMemoryProject.of({
+            path: "src/Whatever.ts", content: `import * from "foo";
+import { Stuff } from "@atomist/automation-client";
+
+const blah = "blah"
+`,
+        });
+        printStructureOfFile(input, "src/Whatever.ts");
+        AddParameter.addImport(input, "src/Whatever.ts",
+            { name: "HandlerContext", location: "@atomist/automation-client" })
+            .then(changed => input.flush().then(() => changed))
+            .then(changed => {
+
+                const after = input.findFileSync("src/Whatever.ts").getContentSync();
+                assert(after.includes(`import { HandlerContext, Stuff } from "@atomist/automation-client"`), after);
+                assert(changed)
+            }).then(() => done(), done)
     })
 });
 

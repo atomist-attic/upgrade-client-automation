@@ -41,7 +41,7 @@ export function passContextToFunction(params: {
         const originalRequirement: Requirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: params,
-            parameterType: "HandlerContext",
+            parameterType: { name: "HandlerContext", location: "@atomist/automation-client" },
             parameterName: "context",
             why: "I want to use the context in here",
             dummyValue: "{} as HandlerContext",
@@ -142,7 +142,7 @@ export namespace AddParameter {
     export interface AddParameterRequirement {
         kind: "Add Parameter";
         functionWithAdditionalParameter: FunctionIdentifier;
-        parameterType: string;
+        parameterType: { name: string; location: string };
         parameterName: string;
         dummyValue: string;
         why?: any;
@@ -159,12 +159,12 @@ export namespace AddParameter {
         return r.kind === "Pass Dummy In Tests";
     }
 
-   export function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
+    export function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
         return r.kind === "Add Parameter";
     }
 
 
-   export function isPassArgumentRequirement(r: Requirement): r is PassArgumentRequirement {
+    export function isPassArgumentRequirement(r: Requirement): r is PassArgumentRequirement {
         return r.kind === "Pass Argument";
     }
 
@@ -195,7 +195,7 @@ export namespace AddParameter {
             return Promise.resolve(checked);
         }
         const thisOne = unchecked.pop(); // mutation
-        if(checked.some(o => sameRequirement(o, thisOne))) {
+        if (checked.some(o => sameRequirement(o, thisOne))) {
             logger.info("Already checked " + stringify(thisOne));
             return findConsequences(project, unchecked, checked);
         }
@@ -338,7 +338,8 @@ export namespace AddParameter {
 
     function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
         const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
-        return findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
+        return addImport(project, requirement.functionWithAdditionalParameter.filePath, requirement.parameterType)
+            .then(() => findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
             functionDeclarationExpression)
             .then(matches => {
                 if (matches.length === 0) {
@@ -359,7 +360,39 @@ export namespace AddParameter {
                     functionDeclaration.$value = newValue;
                     return reportImplemented(requirement);
                 }
-            });
+            }));
+    }
+
+    export function addImport(project: Project, path: string, what: { name: string, location: string }): Promise<boolean> {
+        return findMatches(project, TypeScriptES6FileParser, path, "/SourceFile").then(sources => {
+            const source = sources[0];
+            const existingImport = source.evaluateExpression(
+                `//ImportDeclaration//Identifier[@value='${what.name}']`);
+            if (existingImport && 0 < existingImport.length) {
+                logger.debug("Import already exists: " + existingImport[0].$value);
+                // import found
+                return false;
+            }
+
+            const locationImportMatches = source.evaluateExpression(
+                `//ImportDeclaration[//StringLiteral[@value='${what.location}']]`);
+            if (locationImportMatches && 0 < locationImportMatches.length) {
+                const locationImport = locationImportMatches[0];
+                // not handling: *
+                const newValue = locationImport.$value.replace(
+                    /{/,
+                    `{ ${what.name},`);
+                locationImport.$value = newValue;
+                logger.debug("Adding to import. New value: " + newValue);
+                return true;
+            }
+            // No existing import to modify. Add one.
+            const newStatement = `import { ${what.name} } from "${what.location}";\n`;
+
+            logger.debug("adding new import statement: " + newStatement);
+            source.$value = newStatement + source.$value;
+            return true;
+        })
     }
 
 
