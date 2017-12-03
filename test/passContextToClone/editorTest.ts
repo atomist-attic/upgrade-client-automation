@@ -209,7 +209,24 @@ function copyOfBefore() {
         thisProject.findFileSync("src/AdditionalFileThatUsesStuff.ts"));
 }
 
-describe("Adding an import", () => {
+describe("Adding a parameter", () => {
+    it("Add the right type", done => {
+        const input = copyOfBefore();
+        AddParameter.implement(input, {
+            kind: "Add Parameter",
+            functionWithAdditionalParameter: {
+                name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
+            }, parameterName: "context",
+            parameterType: { name: "HandlerContext", location: "@atomist/automation-client" },
+            dummyValue: "{}",
+        }).then(changed => input.flush().then(() => changed))
+            .then(report => {
+                const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
+                assert(after.includes(
+                    `andEvenMoreStuff(context: HandlerContext, `), after)
+            }).then(() => done(), done)
+    });
+
     it("Adds an import file too", done => {
         const input = copyOfBefore();
         AddParameter.implement(input, {
@@ -225,8 +242,12 @@ describe("Adding an import", () => {
                 assert(after.includes(
                     `import { HandlerContext } from "@atomist/automation-client"`), after)
             }).then(() => done(), done)
-    })
+    });
 
+
+});
+
+describe("add import", () => {
     it("Adds a name to an existing import", done => {
         const input = InMemoryProject.of({
             path: "src/Whatever.ts", content: `import * from "foo";
@@ -245,7 +266,7 @@ const blah = "blah"
                 assert(after.includes(`import { HandlerContext, Stuff } from "@atomist/automation-client"`), after);
                 assert(changed)
             }).then(() => done(), done)
-    })
+    });
 });
 
 function printMatch(m: TreeNode): string[] {
@@ -258,3 +279,17 @@ function printMatch(m: TreeNode): string[] {
 }
 
 // wishlist: a replacer that would let me print the matches, without printing sourceFile every time
+
+describe("actually run it", () => {
+
+    it("just run it", done => {
+        const realProject = new NodeFsLocalProject("automation-client",
+            "/Users/jessitron/code/atomist/automation-client-ts");
+
+        passContextToFunction({
+            name: "GitCommandGitProject.cloned",
+            filePath: "/Users/jessitron/code/atomist/automation-client-ts/src/project/git/GitCommandGitProject.ts"
+        })(realProject)
+            .then(() => done(), done)
+    }).timeout(1000000);
+});

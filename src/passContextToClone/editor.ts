@@ -221,7 +221,7 @@ export namespace AddParameter {
                     const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
 
                     const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
-                    const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType}']]/Identifier`;
+                    const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
                     const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
 
                     if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
@@ -356,7 +356,7 @@ export namespace AddParameter {
 
                     const newValue = functionDeclaration.$value.replace(
                         new RegExp(identifier + "\\s*\\(", "g"),
-                        `${identifier}(${requirement.parameterName}: ${requirement.parameterType}, `);
+                        `${identifier}(${requirement.parameterName}: ${requirement.parameterType.name}, `);
                     functionDeclaration.$value = newValue;
                     return reportImplemented(requirement);
                 }
