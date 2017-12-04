@@ -27,7 +27,6 @@ import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typ
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 import { Project } from "@atomist/automation-client/project/Project";
-import { AddImport } from "../../src/passContextToClone/manipulateImports";
 import PassDummyInTestsRequirement = AddParameter.PassDummyInTestsRequirement;
 import AddParameterRequirement = AddParameter.AddParameterRequirement;
 import implement = AddParameter.implement;
@@ -69,39 +68,6 @@ describe("editor to pass the context into the cloned method", () => {
                 assert.equal(m.length, 2, newTestCode);
             }).then(() => done(), done);
     });
-});
-
-describe("populating dummy in test", () => {
-    it("adds an additional import", done => {
-        const fileOfInterest = "test/Something.ts";
-        const input = InMemoryProject.of(
-            {
-                path: fileOfInterest, content: `import \"mocha\";\n
-             
-             myFunction();
-             `,
-            });
-
-        const instruction: PassDummyInTestsRequirement = {
-            functionWithAdditionalParameter: { name: "myFunction", filePath: "doesntmatter" },
-            kind: "Pass Dummy In Tests",
-            dummyValue: "{} as HandlerContext",
-            additionalImport: {
-                kind: "library", name: "HandlerContext",
-                location: "@atomist/automation-client",
-            },
-        }
-
-        AddParameter.implement(input, instruction).then(() => input.flush())
-            .then(() => {
-                const after = input.findFileSync(fileOfInterest).getContentSync();
-                assert(after.includes("import { HandlerContext } "), after)
-            })
-            .then(() => done(), done)
-    })
-});
-
-describe("please add context to the call", () => {
 
     it("detects context in the calling function", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
@@ -140,12 +106,68 @@ describe("please add context to the call", () => {
             }).then(() => done(), done);
     });
 
-    it("detects changes across files")
-
 });
 
-describe("more files, more levels", () => {
-    it("finds a reasonable number of consequences", done => {
+describe("populating dummy in test", () => {
+    it("adds an additional import", done => {
+        const fileOfInterest = "test/Something.ts";
+        const input = InMemoryProject.of(
+            {
+                path: fileOfInterest, content: `import \"mocha\";\n
+             
+             myFunction();
+             `,
+            });
+
+        const instruction: PassDummyInTestsRequirement = {
+            functionWithAdditionalParameter: { name: "myFunction", filePath: "doesntmatter" },
+            kind: "Pass Dummy In Tests",
+            dummyValue: "{} as HandlerContext",
+            additionalImport: {
+                kind: "library", name: "HandlerContext",
+                location: "@atomist/automation-client",
+            },
+        }
+
+        AddParameter.implement(input, instruction).then(() => input.flush())
+            .then(() => {
+                const after = input.findFileSync(fileOfInterest).getContentSync();
+                assert(after.includes("import { HandlerContext } "), after)
+            })
+            .then(() => done(), done)
+    })
+});
+
+
+describe("detection of consequences", () => {
+    it("can find calls to functions that aren't qualified names", done => {
+        const thisProject = new NodeFsLocalProject("automation-client",
+            appRoot.path + "/test/passContextToClone/resources/before");
+
+        AddParameter.findConsequences(thisProject,
+            [{
+                "kind": "Add Parameter",
+                "functionWithAdditionalParameter": {
+                    name: "exportedDoesNotYetHaveContext",
+                    filePath: "src/CodeThatUsesIt.ts",
+                },
+                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
+                "parameterName": "context",
+                populateInTests: {
+                    dummyValue: "{}",
+                    additionalImport: {
+                        kind: "library",
+                        name: "HandlerContext",
+                        location: "@atomist/automation-client",
+                    },
+                },
+            }]).then(consequences => {
+            assert.equal(consequences.length, 8, stringify(consequences))
+        })
+            .then(() => done(), done);
+    });
+
+    it("looks at many levels, in multiple files", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
@@ -187,36 +209,6 @@ describe("more files, more levels", () => {
             .then(() => done(), done);
     }).timeout(20000)
 
-
-});
-
-describe("detection of consequences", () => {
-    it("can find calls to functions that aren't qualified names", done => {
-        const thisProject = new NodeFsLocalProject("automation-client",
-            appRoot.path + "/test/passContextToClone/resources/before");
-
-        AddParameter.findConsequences(thisProject,
-            [{
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    name: "exportedDoesNotYetHaveContext",
-                    filePath: "src/CodeThatUsesIt.ts",
-                },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-                "parameterName": "context",
-                populateInTests: {
-                    dummyValue: "{}",
-                    additionalImport: {
-                        kind: "library",
-                        name: "HandlerContext",
-                        location: "@atomist/automation-client",
-                    },
-                },
-            }]).then(consequences => {
-            assert.equal(consequences.length, 8, stringify(consequences))
-        })
-            .then(() => done(), done);
-    });
 
     it("helps me out", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
@@ -290,7 +282,37 @@ describe("Adding a parameter", () => {
                 assert(after.includes("public static giveMeYourContext(context: HanderContext, stuff: string)"), after)
             }).then(() => done(), done)
 
-    })
+    });
+
+    it("finds the function inside a namespace", done => {
+        const fileOfInterest = "src/Spacey.ts";
+        const input = InMemoryProject.of({
+            path: fileOfInterest, content:
+                `namespace Spacey {
+        export function giveMeYourContext(stuff: string) { }
+        }
+`,
+        });
+
+        const addParameterInstruction: AddParameterRequirement = {
+            kind: "Add Parameter",
+            functionWithAdditionalParameter: { name: "Spacey.giveMeYourContext", filePath: fileOfInterest },
+            parameterType: { kind: "local", name: "HanderContext", localPath: "src/HandlerContext" },
+            parameterName: "context",
+            populateInTests: { dummyValue: "{}" },
+        };
+
+        implement(input, addParameterInstruction).then(report => {
+            console.log(stringify(report, null, 2));
+            return printStructureOfFile(input, fileOfInterest);
+        }).then(() => input.flush())
+            .then(() => {
+                const after = input.findFileSync(fileOfInterest).getContentSync();
+                assert(after.includes("export function giveMeYourContext(context: HanderContext, stuff: string)"), after)
+            }).then(() => done(), done)
+
+    });
+
     it("Add the right type", done => {
         const input = copyOfBefore();
         AddParameter.implement(input, {

@@ -333,9 +333,14 @@ export namespace AddParameter {
             const functionName = match[2];
 
             const declarationOfInterest = `/Identifier[@value='${functionName}']`;
-            const functionDeclarationExpression = `//ClassDeclaration[/Identifier[@value='${className}']]//MethodDeclaration[${declarationOfInterest}]`;
+            const methodDeclarationExpression = `//ClassDeclaration[/Identifier[@value='${className}']]//MethodDeclaration[${declarationOfInterest}]`;
+            /*
+             this is approximate. Functions in namespaces are not nested under their namespaces, sadly.
+             This will find the function declaration in a different namespace in the same file, too.
+             */
+            const functionInNamespaceDeclaration = `//ModuleDeclaration[/Identifier[@value='${className}']]/ModuleBlock//FunctionDeclaration[${declarationOfInterest}]`;
 
-            return functionDeclarationExpression;
+            return methodDeclarationExpression + "|" + functionInNamespaceDeclaration;
         }
     }
 
@@ -384,8 +389,8 @@ export namespace AddParameter {
                     functionDeclarationExpression)
                     .then(matches => {
                         if (matches.length === 0) {
-                            logger.warn("Found 0 function declarations called " +
-                                requirement.functionWithAdditionalParameter.name + " in " +
+                            logger.warn("Found 0 function declarations for " +
+                                functionDeclarationExpression + " in " +
                                 requirement.functionWithAdditionalParameter.filePath);
                             return reportUnimplemented(requirement, "Function declaration not found");
                         } else if (1 < matches.length) {
