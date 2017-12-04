@@ -140,7 +140,7 @@ export namespace AddParameter {
     }
 
 
-    function sameRequirement(r1: Requirement, r2: Requirement): boolean {
+    export function sameRequirement(r1: Requirement, r2: Requirement): boolean {
         return r1.kind === r2.kind &&
             sameFunctionIdentifier(r1.functionWithAdditionalParameter, r2.functionWithAdditionalParameter) &&
             r1.functionWithAdditionalParameter.filePath === r2.functionWithAdditionalParameter.filePath &&
@@ -226,52 +226,79 @@ export namespace AddParameter {
             additionalImport: requirement.populateInTests.additionalImport,
         };
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter.name);
+        const callWithinFunction = `//FunctionDeclaration[${innerExpression}]`;
+        const callWithinMethod = `//ClassDeclaration//MethodDeclaration[${innerExpression}]`;
+        const callWithinClass = `//ClassDeclaration[${callWithinMethod}]`;
 
         // in source, either find a parameter that fits, or receive it.
         return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts",
-            `//FunctionDeclaration[${innerExpression}]`)
-            .then(matches => {
-                return _.flatMap(matches, enclosingFunction => {
-                    const enclosingFunctionName = childrenNamed(enclosingFunction, "Identifier")[0].$value;
+            callWithinFunction)
+            .then(matches => _.flatMap(matches, enclosingFunction =>
+                requirementsFromFunctionCall(requirement, enclosingFunction)))
+            .then(requirementsFromCallsWithinFunctionCalls =>
+                findMatches(project, TypeScriptES6FileParser, "src/**/*.ts",
+                    callWithinClass)
+                    .then(classMatches => _.flatMap(classMatches, classMatch => {
+                        const classIdentifier = identifier(classMatch);
+                        // rod: these appear not to exist on the nodes returned from evaluateExpression
+                        const filePath = (classMatch as LocatedTreeNode).sourceLocation.path;
+                        const methods = classMatch.evaluateExpression(callWithinMethod);
+                        logger.info("how many methods? "+ methods.length);
+                        return _.flatMap(methods,
+                            enclosingFunction =>
+                                requirementsFromFunctionCall(requirement, enclosingFunction, classIdentifier, filePath))
+                    }))
+                    .then(requirementsFromCallsWithinMethods =>
+                        requirementsFromCallsWithinMethods.concat(requirementsFromCallsWithinFunctionCalls)),
+            )
+            .then((srcConsequences: Requirement[]) => srcConsequences.concat([passDummyInTests]));
+    }
 
-                    const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
-                    const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
-                    const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
+    function requirementsFromFunctionCall(requirement: AddParameterRequirement,
+                                          enclosingFunction: MatchResult,
+                                          namespace?: string,
+                                          knownFilePath?: string): Requirement[] {
+        const enclosingFunctionIdentifier = identifier(enclosingFunction);
+        const enclosingFunctionName = namespace ?
+            namespace + "." + enclosingFunctionIdentifier :
+            enclosingFunctionIdentifier;
 
-                    if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
-                        const identifier = suitableParameterMatches[0];
-                        // these are locatable tree nodes, I can include a line number in the instruction! sourceLocation.lineFrom1
-                        logger.info("Found a call to %s inside a function called %s, with parameter %s",
-                            requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
+        const filePath = knownFilePath || (enclosingFunction as LocatedTreeNode).sourceLocation.path;
+        const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
+        const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
 
-                        const instruction: PassArgumentRequirement = {
-                            kind: "Pass Argument",
-                            enclosingFunction: { name: enclosingFunctionName, filePath },
-                            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                            argumentValue: identifier.$value,
-                        };
-                        return [instruction];
-                    } else {
-                        logger.info("Found a call to %s inside a function called %s, no suitable parameter",
-                            requirement.functionWithAdditionalParameter, enclosingFunctionName);
+        if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
+            const identifier = suitableParameterMatches[0];
+            // these are locatable tree nodes, I can include a line number in the instruction! sourceLocation.lineFrom1
+            logger.info("Found a call to %s inside a function called %s, with parameter %s",
+                requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
 
-                        const passNewArgument: AddParameterRequirement = {
-                            kind: "Add Parameter",
-                            functionWithAdditionalParameter: { name: enclosingFunctionName, filePath },
-                            parameterType: requirement.parameterType,
-                            parameterName: requirement.parameterName,
-                            populateInTests: requirement.populateInTests,
-                        };
-                        const newParameterForMe: PassArgumentRequirement = {
-                            kind: "Pass Argument",
-                            enclosingFunction: { name: enclosingFunctionName, filePath },
-                            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                            argumentValue: requirement.parameterName,
-                        };
-                        return [passNewArgument, newParameterForMe];
-                    }
-                })
-            }).then((srcConsequences: Requirement[]) => srcConsequences.concat([passDummyInTests]));
+            const instruction: PassArgumentRequirement = {
+                kind: "Pass Argument",
+                enclosingFunction: { name: enclosingFunctionName, filePath },
+                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+                argumentValue: identifier.$value,
+            };
+            return [instruction];
+        } else {
+            logger.info("Found a call to %s inside a function called %s, no suitable parameter",
+                requirement.functionWithAdditionalParameter, enclosingFunctionName);
+
+            const passNewArgument: AddParameterRequirement = {
+                kind: "Add Parameter",
+                functionWithAdditionalParameter: { name: enclosingFunctionName, filePath },
+                parameterType: requirement.parameterType,
+                parameterName: requirement.parameterName,
+                populateInTests: requirement.populateInTests,
+            };
+            const newParameterForMe: PassArgumentRequirement = {
+                kind: "Pass Argument",
+                enclosingFunction: { name: enclosingFunctionName, filePath },
+                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+                argumentValue: requirement.parameterName,
+            };
+            return [passNewArgument, newParameterForMe];
+        }
     }
 
     export function implement(project: Project, requirement: Requirement): Promise<Report> {
@@ -388,7 +415,7 @@ export namespace AddParameter {
         return AddImport.addImport(project,
             requirement.functionWithAdditionalParameter.filePath,
             requirement.parameterType)
-            .then(() =>
+            .then(importAdded =>
                 findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
                     functionDeclarationExpression)
                     .then(matches => {
@@ -416,6 +443,10 @@ export namespace AddParameter {
             throw new Error(msg)
         }
         return m[0];
+    }
+
+    function identifier(parent: TreeNode): string {
+        return childrenNamed(parent, "Identifier")[0].$value
     }
 
     function childrenNamed(parent: TreeNode, name: string) {

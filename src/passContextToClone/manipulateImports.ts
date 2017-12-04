@@ -26,7 +26,9 @@ export namespace AddImport {
     }
 
     function calculateRelativePath(from: string, to: string) {
-        return path.relative(from, to)
+        const relativePath = path.relative(from, to);
+        logger.info("Relative path from %s to %s is %s", from, to, relativePath);
+        return relativePath
             .replace(/^\.\.\//, "./") // go back one fewer than it thinks
             .replace(/^\.\/\.\.\//, "../");  // but ./../ looks silly
     }
@@ -43,7 +45,9 @@ export namespace AddImport {
                     return false;
                 }
 
-                const location = isLibraryImport(what) ? what.location : calculateRelativePath(path, what.localPath);
+                const location = isLibraryImport(what) ? what.location : calculateRelativePath(
+                    path,
+                    what.localPath);
 
                 const locationImportMatches = source.evaluateExpression(
                     `//ImportDeclaration[//StringLiteral[@value='${location}']]`);
@@ -70,8 +74,11 @@ export namespace AddImport {
     }
 
     function requireExactlyOne(m: MatchResult[], msg: string): MatchResult {
-        if (!m || m.length != 1) {
-            throw new Error(msg)
+        if (!m) {
+            throw new Error("match result undefined. " + msg)
+        }
+        if ( m.length != 1) {
+            throw new Error("Expected 1, got " + m.length + " matches. " + msg)
         }
         return m[0];
     }
