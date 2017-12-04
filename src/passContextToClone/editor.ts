@@ -39,13 +39,21 @@ export function passContextToFunction(params: {
     filePath: string
 }): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
+        const handlerContextType: AddImport.ImportIdentifier = {
+            kind: "local",
+            name: "HandlerContext",
+            localPath: "src/HandlerContext",
+        };
         const originalRequirement: Requirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: params,
-            parameterType: { kind: "local", name: "HandlerContext", localPath: "src/HandlerContext" },
+            parameterType: handlerContextType,
             parameterName: "context",
             why: "I want to use the context in here",
-            dummyValue: "{} as HandlerContext",
+            populateInTests: {
+                dummyValue: "{} as HandlerContext",
+                additionalImport: handlerContextType,
+            },
         };
 
         return AddParameter.findConsequences(p, [originalRequirement])
@@ -145,7 +153,10 @@ export namespace AddParameter {
         functionWithAdditionalParameter: FunctionIdentifier;
         parameterType: AddImport.ImportIdentifier;
         parameterName: string;
-        dummyValue: string;
+        populateInTests: {
+            dummyValue: string;
+            additionalImport?: AddImport.ImportIdentifier;
+        }
         why?: any;
     }
 
@@ -153,6 +164,7 @@ export namespace AddParameter {
         kind: "Pass Dummy In Tests";
         functionWithAdditionalParameter: FunctionIdentifier;
         dummyValue: string;
+        additionalImport?: AddImport.ImportIdentifier;
         why?: any;
     }
 
@@ -210,7 +222,8 @@ export namespace AddParameter {
         const passDummyInTests: PassDummyInTestsRequirement = {
             kind: "Pass Dummy In Tests",
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-            dummyValue: requirement.dummyValue,
+            dummyValue: requirement.populateInTests.dummyValue,
+            additionalImport: requirement.populateInTests.additionalImport,
         };
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter.name);
 
@@ -247,7 +260,7 @@ export namespace AddParameter {
                             functionWithAdditionalParameter: { name: enclosingFunctionName, filePath },
                             parameterType: requirement.parameterType,
                             parameterName: requirement.parameterName,
-                            dummyValue: requirement.dummyValue,
+                            populateInTests: requirement.populateInTests,
                         };
                         const newParameterForMe: PassArgumentRequirement = {
                             kind: "Pass Argument",
@@ -309,12 +322,22 @@ export namespace AddParameter {
 
     function pathExpressionToFunctionDeclaration(fn: FunctionIdentifier): string {
 
-        const declarationOfInterest = `/Identifier[@value='${fn.name}'`;
-        const functionDeclarationExpression = `//FunctionDeclaration[${declarationOfInterest}]]`;
+        const functionInClass = /^(.*)\.(.*)$/;
 
-        // TODO: handle ones with a namespace component.
+        const match = fn.name.match(functionInClass)
+        if(!match) {
+            const declarationOfInterest = `/Identifier[@value='${fn.name}'`;
+            const functionDeclarationExpression = `//FunctionDeclaration[${declarationOfInterest}]]`;
+            return functionDeclarationExpression;
+        } else {
+            const className = match[1];
+            const functionName = match[2];
 
-        return functionDeclarationExpression;
+            const declarationOfInterest = `/Identifier[@value='${functionName}']`;
+            const functionDeclarationExpression = `//ClassDeclaration[/Identifier[@value='${className}']]//MethodDeclaration[${declarationOfInterest}]`;
+
+            return functionDeclarationExpression;
+        }
     }
 
     function passDummyInTests(project: Project, requirement: PassDummyInTestsRequirement): Promise<Report> {
@@ -322,7 +345,7 @@ export namespace AddParameter {
             functionCallPathExpression(requirement.functionWithAdditionalParameter.name))
             .then(matches => {
                 if (matches.length === 0) {
-                    return emptyReport; // it's valid for there to be no changes
+                    return []; // it's valid for there to be no changes
                 } else {
                     matches.map(functionCall => {
                         const newValue = functionCall.$value.replace(
@@ -331,18 +354,34 @@ export namespace AddParameter {
                         functionCall.$value = newValue;
 
                     });
-                    return reportImplemented(requirement);
+                    return _.uniq(matches.map(m => (m as LocatedTreeNode).sourceLocation.path));
+                }
+            })
+            .then(filesChanged => project.flush().then(() => filesChanged))
+            .then(filesChanged => {
+                if (filesChanged.length === 0) {
+                    return emptyReport
+                } else {
+                    const addImportTo = requirement.additionalImport? filesChanged : [];
+                    return Promise.all(addImportTo
+                        .map(f => {
+                            return AddImport.addImport(project, f, requirement.additionalImport)
+                        }))
+                        .then(() => reportImplemented(requirement));
                 }
             })
     }
 
 
     function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
-        const functionDeclarationExpression = pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
+        const functionDeclarationExpression =
+            pathExpressionToFunctionDeclaration(requirement.functionWithAdditionalParameter);
+        logger.info("path: " + functionDeclarationExpression);
         return AddImport.addImport(project,
             requirement.functionWithAdditionalParameter.filePath,
             requirement.parameterType)
-            .then(() => findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
+            .then(() =>
+                findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
                 functionDeclarationExpression)
                 .then(matches => {
                     if (matches.length === 0) {
@@ -355,7 +394,8 @@ export namespace AddParameter {
                         return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
                     } else {
                         const functionDeclaration = matches[0];
-                        const identifier = requirement.functionWithAdditionalParameter.name;
+                        const identifier = requirement.functionWithAdditionalParameter.name
+                            .replace(/^.*\./, ""); // remove qualifiers
 
                         const newValue = functionDeclaration.$value.replace(
                             new RegExp(identifier + "\\s*\\(", "g"),
