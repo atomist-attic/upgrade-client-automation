@@ -297,7 +297,7 @@ export namespace AddParameter {
 
         const enclosingFunctionExpression = `/Identifier[@value='${requirement.enclosingFunction.name}'`;
 
-        const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]][${innerExpression}]`;
+        const fullPathExpression = `//FunctionDeclaration[${enclosingFunctionExpression}]]${innerExpression}`;
 
         return findMatches(project,
             TypeScriptES6FileParser,
@@ -311,10 +311,9 @@ export namespace AddParameter {
             return reportUnimplemented(requirement, "Function not found");
         } else {
             matches.map(enclosingFunction => {
-                const newValue = enclosingFunction.$value.replace(
-                    new RegExp(requirement.functionWithAdditionalParameter.name + "\\s*\\(", "g"),
-                    requirement.functionWithAdditionalParameter.name + `(${requirement.argumentValue}, `);
-                enclosingFunction.$value = newValue;
+                const openParen = requireExactlyOne(enclosingFunction.evaluateExpression("/OpenParenToken"),
+                    "wtf where is open paren");
+                openParen.$value = `(${requirement.argumentValue}, `;
             });
             return reportImplemented(requirement);
         }
@@ -325,7 +324,7 @@ export namespace AddParameter {
         const functionInClass = /^(.*)\.(.*)$/;
 
         const match = fn.name.match(functionInClass)
-        if(!match) {
+        if (!match) {
             const declarationOfInterest = `/Identifier[@value='${fn.name}'`;
             const functionDeclarationExpression = `//FunctionDeclaration[${declarationOfInterest}]]`;
             return functionDeclarationExpression;
@@ -362,7 +361,7 @@ export namespace AddParameter {
                 if (filesChanged.length === 0) {
                     return emptyReport
                 } else {
-                    const addImportTo = requirement.additionalImport? filesChanged : [];
+                    const addImportTo = requirement.additionalImport ? filesChanged : [];
                     return Promise.all(addImportTo
                         .map(f => {
                             return AddImport.addImport(project, f, requirement.additionalImport)
@@ -382,30 +381,33 @@ export namespace AddParameter {
             requirement.parameterType)
             .then(() =>
                 findMatches(project, TypeScriptES6FileParser, "**/" + requirement.functionWithAdditionalParameter.filePath,
-                functionDeclarationExpression)
-                .then(matches => {
-                    if (matches.length === 0) {
-                        logger.warn("Found 0 function declarations called " +
-                            requirement.functionWithAdditionalParameter.name + " in " +
-                            requirement.functionWithAdditionalParameter.filePath);
-                        return reportUnimplemented(requirement, "Function declaration not found");
-                    } else if (1 < matches.length) {
-                        logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
-                        return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
-                    } else {
-                        const functionDeclaration = matches[0];
-                        const identifier = requirement.functionWithAdditionalParameter.name
-                            .replace(/^.*\./, ""); // remove qualifiers
+                    functionDeclarationExpression)
+                    .then(matches => {
+                        if (matches.length === 0) {
+                            logger.warn("Found 0 function declarations called " +
+                                requirement.functionWithAdditionalParameter.name + " in " +
+                                requirement.functionWithAdditionalParameter.filePath);
+                            return reportUnimplemented(requirement, "Function declaration not found");
+                        } else if (1 < matches.length) {
+                            logger.warn("Doing Nothing; Found more than one function declaration called " + requirement.functionWithAdditionalParameter);
+                            return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
+                        } else {
+                            const functionDeclaration = matches[0];
+                            const openParen = requireExactlyOne(functionDeclaration.evaluateExpression("/OpenParenToken"),
+                                "wtf where is open paren");
 
-                        const newValue = functionDeclaration.$value.replace(
-                            new RegExp(identifier + "\\s*\\(", "g"),
-                            `${identifier}(${requirement.parameterName}: ${requirement.parameterType.name}, `);
-                        functionDeclaration.$value = newValue;
-                        return reportImplemented(requirement);
-                    }
-                }));
+                            openParen.$value = `(${requirement.parameterName}: ${requirement.parameterType.name}, `;
+                            return reportImplemented(requirement);
+                        }
+                    }));
     }
 
+    function requireExactlyOne(m: TreeNode[], msg: string): TreeNode {
+        if (!m || m.length != 1) {
+            throw new Error(msg)
+        }
+        return m[0];
+    }
 
     function childrenNamed(parent: TreeNode, name: string) {
         return parent.$children.filter(child => child.$name === name);

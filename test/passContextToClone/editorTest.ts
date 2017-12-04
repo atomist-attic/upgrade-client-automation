@@ -121,7 +121,10 @@ describe("please add context to the call", () => {
                 const expected = resultProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
 
                 console.log(modified);
-                assert.equal(modified, expected, modified); //  there is one difference we don't cover
+                assert(modified.includes("import { HandlerContext"), "needs the import");
+                assert(modified.includes("andEvenMoreStuff(context: HandlerContext"), "adds parameter");
+                assert(modified.includes("usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext(context"),
+                    "passes argument");
                 return report;
             })
             .then(report => {
@@ -129,8 +132,10 @@ describe("please add context to the call", () => {
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
                 console.log(modified);
-                assert.equal(report.addParameterReport.unimplemented.length, 1, stringify(report, null, 2));
-                assert.equal(report.addParameterReport.implemented.length, 9, stringify(report, null, 2));
+                assert.equal(report.addParameterReport.unimplemented.length, 1,
+                    stringify(report, null, 2));
+                assert.equal(report.addParameterReport.implemented.length, 11,
+                    stringify(report, null, 2));
                 assert.equal(modified, expected, modified); //  there is one difference we don't cover
             }).then(() => done(), done);
     });
