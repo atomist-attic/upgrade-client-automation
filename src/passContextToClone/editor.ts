@@ -281,9 +281,11 @@ export namespace AddParameter {
         }
         if (isAddDummyInTests(requirement)) {
             return passDummyInTests(project, requirement);
-        } else {
+        }
+        if (isPassArgumentRequirement(requirement)) {
             return passArgument(project, requirement);
         }
+        return Promise.resolve(reportUnimplemented(requirement, "I don't know how to implement that yet"))
     }
 
     function functionCallPathExpression(fn: string) {
@@ -333,12 +335,14 @@ export namespace AddParameter {
             const functionName = match[2];
 
             const declarationOfInterest = `/Identifier[@value='${functionName}']`;
-            const methodDeclarationExpression = `//ClassDeclaration[/Identifier[@value='${className}']]//MethodDeclaration[${declarationOfInterest}]`;
+            const methodDeclarationExpression =
+                `//ClassDeclaration[/Identifier[@value='${className}']]//MethodDeclaration[${declarationOfInterest}]`;
             /*
              this is approximate. Functions in namespaces are not nested under their namespaces, sadly.
              This will find the function declaration in a different namespace in the same file, too.
              */
-            const functionInNamespaceDeclaration = `//ModuleDeclaration[/Identifier[@value='${className}']]/ModuleBlock//FunctionDeclaration[${declarationOfInterest}]`;
+            const functionInNamespaceDeclaration =
+                `//ModuleDeclaration[/Identifier[@value='${className}']]/ModuleBlock//FunctionDeclaration[${declarationOfInterest}]`;
 
             return methodDeclarationExpression + "|" + functionInNamespaceDeclaration;
         }
