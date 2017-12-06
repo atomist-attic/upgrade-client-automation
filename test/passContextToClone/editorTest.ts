@@ -115,6 +115,76 @@ describe("detection of consequences", () => {
 
     it("when a function with a new parameter is not exported, calls to the same-name function in another file are not affected");
 
+    it("detects an exported function and calls it public", done => {
+        const fileOfInterest = "src/Classy.ts";
+        const input = InMemoryProject.of({
+            path: fileOfInterest, content: `
+        export function thinger() {
+            return giveMeYourContext("and stuff");
+        }\n`,
+        });
+
+        const original: Requirement =
+            {
+                "kind": "Add Parameter",
+                "functionWithAdditionalParameter": {
+                    name: "giveMeYourContext",
+                    filePath: "src/DoesntMatter.ts",
+                },
+                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
+                "parameterName": "context",
+                populateInTests: {
+                    dummyValue: "{}",
+                },
+                scope: { kind: "PublicFunctionScope" },
+            };
+
+        printStructureOfFile(input, fileOfInterest)
+            .then(() => findConsequences(input, [original]))
+            .then(consequences => {
+                assert(consequences.some(c => {
+                    return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger"
+                        && c.scope.kind === "PublicFunctionScope";
+                }))
+            })
+            .then(() => done(), done);
+    });
+
+    it("detects a not-exported function and calls it private", done => {
+        const fileOfInterest = "src/Classy.ts";
+        const input = InMemoryProject.of({
+            path: fileOfInterest, content: `
+        function thinger() {
+            return giveMeYourContext("and stuff");
+        }\n`,
+        });
+
+        const original: Requirement =
+            {
+                "kind": "Add Parameter",
+                "functionWithAdditionalParameter": {
+                    name: "giveMeYourContext",
+                    filePath: "src/DoesntMatter.ts",
+                },
+                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
+                "parameterName": "context",
+                populateInTests: {
+                    dummyValue: "{}",
+                },
+                scope: { kind: "PublicFunctionScope" },
+            };
+
+        printStructureOfFile(input, fileOfInterest)
+            .then(() => findConsequences(input, [original]))
+            .then(consequences => {
+                const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
+                    c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                assert(consequenceOfInterest);
+                assert(consequenceOfInterest.scope.kind === "PrivateFunctionScope");
+            })
+            .then(() => done(), done);
+    });
+
     it("finds calls inside a class method", done => {
         const fileOfInterest = "src/Classy.ts";
         const input = InMemoryProject.of({
@@ -138,6 +208,7 @@ describe("detection of consequences", () => {
                 populateInTests: {
                     dummyValue: "{}",
                 },
+                scope: { kind: "PublicFunctionScope" },
             };
 
         printStructureOfFile(input, fileOfInterest)
@@ -174,6 +245,7 @@ describe("detection of consequences", () => {
                     location: "@atomist/automation-client",
                 },
             },
+            scope: { kind: "PublicFunctionScope" },
         };
 
         AddParameter.findConsequences(input, [original])
@@ -203,6 +275,7 @@ describe("detection of consequences", () => {
                         location: "@atomist/automation-client",
                     },
                 },
+                scope: { kind: "PublicFunctionScope" },
             }]).then(consequences => {
             assert.equal(consequences.length, 8, stringify(consequences))
         })
@@ -230,6 +303,7 @@ describe("detection of consequences", () => {
                         location: "@atomist/automation-client",
                     },
                 },
+                scope: { kind: "PublicFunctionScope" },
             }]).then(consequences => {
 
             const addParameterAtHigherLevel = consequences.find(c =>
@@ -249,7 +323,7 @@ describe("detection of consequences", () => {
                 stringify(consequences, null, 2))
         })
             .then(() => done(), done);
-    }).timeout(20000)
+    }).timeout(20000);
 
 
     it("helps me out", done => {
@@ -359,6 +433,7 @@ describe("Adding a parameter", () => {
                     "localPath": "src/HandlerContext",
                 },
             },
+            scope: { kind: "PublicFunctionScope" },
         };
 
         implement(input, addParameterInstruction).then(report => {
@@ -391,6 +466,7 @@ describe("Adding a parameter", () => {
             parameterType: { kind: "local", name: "HanderContext", localPath: "src/HandlerContext" },
             parameterName: "context",
             populateInTests: { dummyValue: "{}" },
+            scope: { kind: "PublicFunctionScope" },
         };
 
         implement(input, addParameterInstruction).then(report => {
@@ -420,6 +496,7 @@ describe("Adding a parameter", () => {
             parameterType: { kind: "local", name: "HanderContext", localPath: "src/HandlerContext" },
             parameterName: "context",
             populateInTests: { dummyValue: "{}" },
+            scope: { kind: "PublicFunctionScope" },
         };
 
         implement(input, addParameterInstruction).then(report => {
@@ -445,6 +522,7 @@ describe("Adding a parameter", () => {
                 dummyValue: "{}",
                 additionalImport: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
             },
+            scope: { kind: "PublicFunctionScope" },
         }).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
@@ -465,6 +543,7 @@ describe("Adding a parameter", () => {
                 dummyValue: "{}",
                 additionalImport: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
             },
+            scope: { kind: "PublicFunctionScope" },
         }).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();

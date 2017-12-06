@@ -54,6 +54,7 @@ export function passContextToFunction(params: {
                 dummyValue: "{} as HandlerContext",
                 additionalImport: handlerContextType,
             },
+            scope: { kind: "PublicFunctionScope" },
         };
 
         return AddParameter.findConsequences(p, [originalRequirement])
@@ -148,6 +149,19 @@ export namespace AddParameter {
                 sameFunctionIdentifier(r1.enclosingFunction, (r2 as PassArgumentRequirement).enclosingFunction))
     }
 
+    export type FunctionScope = PublicFunctionScope | PrivateFunctionScope
+
+    export interface PublicFunctionScope {
+        kind: "PublicFunctionScope"
+    }
+
+    export type PathExpression = string;
+
+    export interface PrivateFunctionScope {
+        kind: "PrivateFunctionScope",
+        visibility: { glob: string, pxe: PathExpression },
+    }
+
     export interface AddParameterRequirement {
         kind: "Add Parameter";
         functionWithAdditionalParameter: FunctionIdentifier;
@@ -157,6 +171,7 @@ export namespace AddParameter {
             dummyValue: string;
             additionalImport?: AddImport.ImportIdentifier;
         }
+        scope: FunctionScope
         why?: any;
     }
 
@@ -243,7 +258,7 @@ export namespace AddParameter {
                         // rod: these appear not to exist on the nodes returned from evaluateExpression
                         const filePath = (classMatch as LocatedTreeNode).sourceLocation.path;
                         const methods = classMatch.evaluateExpression(callWithinMethod);
-                        logger.info("how many methods? "+ methods.length);
+                        logger.info("how many methods? " + methods.length);
                         return _.flatMap(methods,
                             enclosingFunction =>
                                 requirementsFromFunctionCall(requirement, enclosingFunction, classIdentifier, filePath))
@@ -290,6 +305,7 @@ export namespace AddParameter {
                 parameterType: requirement.parameterType,
                 parameterName: requirement.parameterName,
                 populateInTests: requirement.populateInTests,
+                scope: { kind: "PublicFunctionScope" },
             };
             const newParameterForMe: PassArgumentRequirement = {
                 kind: "Pass Argument",
