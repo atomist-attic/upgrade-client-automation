@@ -36,6 +36,8 @@ import findConsequences = AddParameter.findConsequences;
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
 import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
 import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
+import guessPathExpression = AddParameter.guessPathExpression;
+import functionDeclarationFromCallIdentifier = AddParameter.functionDeclarationFromCallIdentifier;
 
 const OldTestCode = `
     const getAClone = (repoName: string = RepoName) => {
@@ -47,6 +49,20 @@ const OldTestCode = `
        GitCommandGitProject.cloned({ token: "yeah" }, whatever, more, things)
     });
 `;
+
+function addParameterRequirement(fci: AddParameter.FunctionCallIdentifier): AddParameterRequirement {
+    return {
+        "kind": "Add Parameter",
+        "functionWithAdditionalParameter": fci,
+        functionDeclaration: functionDeclarationFromCallIdentifier(fci),
+        "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
+        "parameterName": "context",
+        populateInTests: {
+            dummyValue: "{}",
+        },
+        scope: { kind: "PublicFunctionScope" },
+    };
+}
 
 function getAllMatches(r: RegExp, s: string): string[] {
     if (r.flags.indexOf("g") < 0) {
@@ -149,20 +165,13 @@ describe("detection of consequences", () => {
             },
         );
 
-        const original: Requirement =
-            {
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    name: "privateFunciton",
-                    filePath: "src/DoesntMatter.ts",
-                },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-                "parameterName": "context",
-                populateInTests: {
-                    dummyValue: "{}",
-                },
-                scope: { kind: "PrivateFunctionScope", glob: fileToChange, pxe: "/*" },
-            };
+        const original: Requirement = {
+            ...addParameterRequirement({
+                name: "privateFunciton",
+                filePath: "src/DoesntMatter.ts",
+            }),
+            scope: { kind: "PrivateFunctionScope", glob: fileToChange, pxe: "/*" },
+        };
 
         findConsequences(input, [original])
             .then(consequences => {
@@ -187,20 +196,10 @@ describe("detection of consequences", () => {
         }\n`,
         });
 
-        const original: Requirement =
-            {
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    name: "giveMeYourContext",
-                    filePath: "src/DoesntMatter.ts",
-                },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-                "parameterName": "context",
-                populateInTests: {
-                    dummyValue: "{}",
-                },
-                scope: { kind: "PublicFunctionScope" },
-            };
+        const original: Requirement = addParameterRequirement({
+            name: "giveMeYourContext",
+            filePath: "src/DoesntMatter.ts",
+        });
 
         printStructureOfFile(input, fileOfInterest)
             .then(() => findConsequences(input, [original]))
@@ -213,6 +212,7 @@ describe("detection of consequences", () => {
             .then(() => done(), done);
     });
 
+
     it("detects a not-exported function and calls it private", done => {
         const fileOfInterest = "src/Classy.ts";
         const input = InMemoryProject.of({
@@ -223,19 +223,10 @@ describe("detection of consequences", () => {
         });
 
         const original: Requirement =
-            {
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    name: "giveMeYourContext",
-                    filePath: "src/DoesntMatter.ts",
-                },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-                "parameterName": "context",
-                populateInTests: {
-                    dummyValue: "{}",
-                },
-                scope: { kind: "PublicFunctionScope" },
-            };
+            addParameterRequirement({
+                name: "giveMeYourContext",
+                filePath: "src/DoesntMatter.ts",
+            });
 
         printStructureOfFile(input, fileOfInterest)
             .then(() => findConsequences(input, [original]))
@@ -259,26 +250,16 @@ describe("detection of consequences", () => {
         }\n`,
         });
 
-        const original: Requirement =
-            {
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    name: "giveMeYourContext",
-                    filePath: "src/DoesntMatter.ts",
-                },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-                "parameterName": "context",
-                populateInTests: {
-                    dummyValue: "{}",
-                },
-                scope: { kind: "PublicFunctionScope" },
-            };
+        const original: Requirement = addParameterRequirement({
+            name: "giveMeYourContext",
+            filePath: "src/DoesntMatter.ts",
+        });
 
         printStructureOfFile(input, fileOfInterest)
             .then(() => findConsequences(input, [original]))
             .then(consequences => {
                 assert(consequences.some(c => {
-                    return c.kind === "Pass Argument" && c.enclosingFunction.name === "Classy.thinger";
+                    return c.kind === "Pass Argument" && c.enclosingFunction.pxe.includes("Classy");
                 }))
             })
             .then(() => done(), done);
@@ -292,24 +273,10 @@ describe("detection of consequences", () => {
     it("returns the original requirement", done => {
         const input = copyOfBefore();
 
-        const original: Requirement = {
-            "kind": "Add Parameter",
-            "functionWithAdditionalParameter": {
-                name: "exportedDoesNotYetHaveContext",
-                filePath: "src/CodeThatUsesIt.ts",
-            },
-            "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-            "parameterName": "context",
-            populateInTests: {
-                dummyValue: "{}",
-                additionalImport: {
-                    kind: "library",
-                    name: "HandlerContext",
-                    location: "@atomist/automation-client",
-                },
-            },
-            scope: { kind: "PublicFunctionScope" },
-        };
+        const original: Requirement = addParameterRequirement({
+            name: "exportedDoesNotYetHaveContext",
+            filePath: "src/CodeThatUsesIt.ts",
+        },);
 
         AddParameter.findConsequences(input, [original])
             .then(consequences => {
@@ -322,26 +289,13 @@ describe("detection of consequences", () => {
             appRoot.path + "/test/passContextToClone/resources/before");
 
         AddParameter.findConsequences(thisProject,
-            [{
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    name: "exportedDoesNotYetHaveContext",
-                    filePath: "src/CodeThatUsesIt.ts",
-                },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-                "parameterName": "context",
-                populateInTests: {
-                    dummyValue: "{}",
-                    additionalImport: {
-                        kind: "library",
-                        name: "HandlerContext",
-                        location: "@atomist/automation-client",
-                    },
-                },
-                scope: { kind: "PublicFunctionScope" },
-            }]).then(consequences => {
-            assert.equal(consequences.length, 8, stringify(consequences))
-        })
+            [addParameterRequirement({
+                name: "exportedDoesNotYetHaveContext",
+                filePath: "src/CodeThatUsesIt.ts",
+            })])
+            .then(consequences => {
+                assert.equal(consequences.length, 8, stringify(consequences))
+            })
             .then(() => done(), done);
     });
 
@@ -350,24 +304,11 @@ describe("detection of consequences", () => {
             appRoot.path + "/test/passContextToClone/resources/before");
 
         AddParameter.findConsequences(thisProject,
-            [{
-                "kind": "Add Parameter",
-                "functionWithAdditionalParameter": {
-                    name: "InHere.giveMeYourContext",
-                    filePath: "src/CodeThatUsesIt.ts",
-                },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-                "parameterName": "context",
-                populateInTests: {
-                    dummyValue: "{}",
-                    additionalImport: {
-                        kind: "library",
-                        name: "HandlerContext",
-                        location: "@atomist/automation-client",
-                    },
-                },
-                scope: { kind: "PublicFunctionScope" },
-            }]).then(consequences => {
+            [addParameterRequirement({
+                namespace: "InHere",
+                name: "giveMeYourContext",
+                filePath: "src/CodeThatUsesIt.ts",
+            })]).then(consequences => {
 
             const addParameterAtHigherLevel = consequences.find(c =>
                 AddParameter.isAddParameterRequirement(c) &&
@@ -416,7 +357,6 @@ describe("detection of consequences", () => {
 ;
 
 
-
 describe("pass argument", () => {
 
     it("finds calls inside methods", done => {
@@ -437,24 +377,25 @@ describe("pass argument", () => {
         const instruction: PassArgumentRequirement = {
             "kind": "Pass Argument",
             "enclosingFunction": {
-                "name": "DifferenceEngine.cloneRepo",
-                "filePath": "src/project/diff/DifferenceEngine.ts"
+                "pxe": "//ClassDeclaration[/Identifier[@value='DifferenceEngine]]//MethodDeclaration[/Identifier[@value='cloneRepo']]",
+                "filePath": "src/project/diff/DifferenceEngine.ts",
             },
             "functionWithAdditionalParameter": {
-                "name": "GitCommandGitProject.cloned",
-                "filePath": "src/project/git/GitCommandGitProject.ts"
+                "containingClass": "GitCommandGitProject",
+                "name": "cloned",
+                "filePath": "src/project/git/GitCommandGitProject.ts",
             },
             "argumentValue": "context",
         };
 
         printStructureOfFile(input, "src/project/diff/DifferenceEngine.ts").then(() =>
-        AddParameter.implement(input, instruction).then(() => input.flush())
-            .then(() => {
-                const after = input.findFileSync("src/project/diff/DifferenceEngine.ts").getContentSync();
-                assert(after.includes("cloned(context, "), after)
-            }))
+            AddParameter.implement(input, instruction).then(() => input.flush())
+                .then(() => {
+                    const after = input.findFileSync("src/project/diff/DifferenceEngine.ts").getContentSync();
+                    assert(after.includes("cloned(context, "), after)
+                }))
             .then(() => done(), done)
-    })
+    });
 
     it("print path of match", done => {
         const fileOfInterest = "src/project/diff/DifferenceEngine.ts";
@@ -471,27 +412,14 @@ describe("pass argument", () => {
              `,
             });
 
-        const instruction: PassArgumentRequirement = {
-            "kind": "Pass Argument",
-            "enclosingFunction": {
-                "name": "DifferenceEngine.cloneRepo",
-                "filePath": "src/project/diff/DifferenceEngine.ts"
-            },
-            "functionWithAdditionalParameter": {
-                "name": "GitCommandGitProject.cloned",
-                "filePath": "src/project/git/GitCommandGitProject.ts"
-            },
-            "argumentValue": "context",
-        };
-
-        pathOfMatch(input, fileOfInterest).then( paths => {
+        pathOfMatch(input, fileOfInterest).then(paths => {
                 const expectedPath = "//ClassDeclaration[/Identifier[@value='DifferenceEngine']]//MethodDeclaration[/Identifier[@value='cloneRepo']]";
                 assert.deepEqual([expectedPath], paths);
                 return findMatches(input, TypeScriptES6FileParser, fileOfInterest,
                     paths[0]).then(matches => {
-                        assert.equal(identifier(matches[0]), "cloneRepo");
+                    assert.equal(identifier(matches[0]), "cloneRepo");
                 })
-            }
+            },
         )
             .then(() => done(), done)
     })
@@ -510,26 +438,9 @@ function pathOfMatch(project: Project, path: string): Promise<string[]> {
         `/SourceFile//ClassDeclaration//MethodDeclaration`)
         .then(matches => {
             return matches.map(m => {
-                return"//" + printMatchHierarchy(m).reverse().join("//");
+                return guessPathExpression(m);
             })
         });
-}
-
-function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] {
-    hierarchy.push(m);
-    if (m.$parent) {
-        return printMatchHierarchy(m.$parent, hierarchy);
-    } else {
-        return _.compact(hierarchy.map(tn => {
-            const identifier = tn.$children.find(c => c.$name === "Identifier");
-            if (identifier) {
-                const identifierTest = `[/Identifier[@value='${identifier.$value}']]`;
-                return `${tn.$name}${identifierTest}`;
-            } else {
-                return undefined;
-            }
-        }));
-    }
 }
 
 describe("populating dummy in test", () => {
@@ -594,18 +505,15 @@ describe("Adding a parameter", () => {
             realProject.findFileSync(fileOfInterest));
 
         const addParameterInstruction: AddParameterRequirement = {
-            "kind": "Add Parameter",
-            "functionWithAdditionalParameter": {
+            ...addParameterRequirement({
                 "name": "GitCommandGitProject.cloned",
                 "filePath": "src/project/git/GitCommandGitProject.ts",
-            },
+            }),
             "parameterType": {
                 "kind": "local",
                 "name": "HandlerContext",
                 "localPath": "src/HandlerContext",
             },
-            "parameterName": "context",
-            "why": "I want to use the context in here",
             "populateInTests": {
                 "dummyValue": "{} as HandlerContext",
                 "additionalImport": {
@@ -641,15 +549,8 @@ describe("Adding a parameter", () => {
         `,
         });
 
-        const addParameterInstruction: AddParameterRequirement = {
-            kind: "Add Parameter",
-            functionWithAdditionalParameter: { name: "Classy.giveMeYourContext", filePath: fileOfInterest },
-            parameterType: { kind: "local", name: "HanderContext", localPath: "src/HandlerContext" },
-            parameterName: "context",
-            populateInTests: { dummyValue: "{}" },
-            scope: { kind: "PublicFunctionScope" },
-        };
-
+        const addParameterInstruction: AddParameterRequirement = addParameterRequirement(
+            { containingClass: "Classy", name: "giveMeYourContext", filePath: fileOfInterest })
         implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest);
@@ -671,14 +572,11 @@ describe("Adding a parameter", () => {
 `,
         });
 
-        const addParameterInstruction: AddParameterRequirement = {
-            kind: "Add Parameter",
-            functionWithAdditionalParameter: { name: "Spacey.giveMeYourContext", filePath: fileOfInterest },
-            parameterType: { kind: "local", name: "HanderContext", localPath: "src/HandlerContext" },
-            parameterName: "context",
-            populateInTests: { dummyValue: "{}" },
-            scope: { kind: "PublicFunctionScope" },
-        };
+        const addParameterInstruction: AddParameterRequirement = addParameterRequirement({
+            namespace: "Spacey",
+            name: "giveMeYourContext",
+            filePath: fileOfInterest,
+        });
 
         implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
@@ -691,20 +589,11 @@ describe("Adding a parameter", () => {
 
     });
 
-    it("Add the right type", done => {
+    it("Adds the right type", done => {
         const input = copyOfBefore();
-        AddParameter.implement(input, {
-            kind: "Add Parameter",
-            functionWithAdditionalParameter: {
+        AddParameter.implement(input, addParameterRequirement({
                 name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
-            }, parameterName: "context",
-            parameterType: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-            populateInTests: {
-                dummyValue: "{}",
-                additionalImport: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-            },
-            scope: { kind: "PublicFunctionScope" },
-        }).then(changed => input.flush().then(() => changed))
+            },)).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 assert(after.includes(
@@ -714,17 +603,10 @@ describe("Adding a parameter", () => {
 
     it("Adds an import file too", done => {
         const input = copyOfBefore();
-        AddParameter.implement(input, {
-            kind: "Add Parameter",
-            functionWithAdditionalParameter: {
+        AddParameter.implement(input, {...addParameterRequirement( {
                 name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
-            }, parameterName: "context",
+            }, ),
             parameterType: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-            populateInTests: {
-                dummyValue: "{}",
-                additionalImport: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-            },
-            scope: { kind: "PublicFunctionScope" },
         }).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
