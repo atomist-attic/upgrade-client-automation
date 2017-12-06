@@ -18,7 +18,7 @@
     "url": "https://github.com/atomist/upgrade-client-automation/issues"
   },
   "dependencies": {
-    "@atomist/automation-client": "https://r.atomist.com/rkrgLQFZWG",
+    "@atomist/automation-client": "https://r.atomist.com/Hy8L9ITHWM",
     "@types/json-stringify-safe": "^5.0.0",
     "app-root-path": "^2.0.1",
     "json-stringify-safe": "^5.0.1"

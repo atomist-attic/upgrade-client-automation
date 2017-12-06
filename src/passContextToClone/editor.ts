@@ -25,7 +25,6 @@ import * as _ from "lodash";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
 import stringify = require("json-stringify-safe");
-import Requirement = AddParameter.Requirement;
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import { AddImport } from "./manipulateImports";
 
@@ -34,17 +33,20 @@ export interface MySpecialEditReport extends EditResult {
     addParameterReport: AddParameter.Report
 }
 
+export type BetweenFunction = (requirement: AddParameter.Requirement, report: AddParameter.Report) => Promise<void>
+const doNothing = () => Promise.resolve();
+
 export function passContextToFunction(params: {
     name: string,
-    filePath: string
-}): (p: Project) => Promise<MySpecialEditReport> {
+    filePath: string,
+}, betweenRequirements: BetweenFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
         const handlerContextType: AddImport.ImportIdentifier = {
             kind: "local",
             name: "HandlerContext",
             localPath: "src/HandlerContext",
         };
-        const originalRequirement: Requirement = {
+        const originalRequirement: AddParameter.Requirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: params,
             parameterType: handlerContextType,
@@ -58,7 +60,11 @@ export function passContextToFunction(params: {
         };
 
         return AddParameter.findConsequences(p, [originalRequirement])
-            .then(reqs => implementInSequenceWithFlushes(p, reqs))
+            .then(reqs => {
+                logger.info("implementing " + reqs.length + " requirements: " + stringify(reqs, null, 1));
+                return reqs
+            })
+            .then(reqs => implementInSequenceWithFlushes(p, reqs, betweenRequirements))
             .then(report => {
                 logger.info("Report: " + stringify(report, null, 2));
                 return {
@@ -69,13 +75,14 @@ export function passContextToFunction(params: {
     }
 }
 
-function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[]) {
-    logger.info("implementing " + activities.length + " requirements: " + stringify(activities, null, 1));
+function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[],
+                                        betweenRequirements: BetweenFunction) {
     return activities.reduce(
-        (pp: Promise<AddParameter.Report>, r1: Requirement) => pp
-            .then(report => AddParameter.implement(project, r1)
+        (pp: Promise<AddParameter.Report>, r1: AddParameter.Requirement) => pp
+            .then(allTheReportsFromBefore => AddParameter.implement(project, r1)
                 .then((report1) => project.flush()
-                    .then(() => AddParameter.combine(report, report1)))),
+                    .then(() => betweenRequirements(r1, report1))
+                    .then(() => AddParameter.combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(AddParameter.emptyReport));
 }
 
@@ -151,15 +158,28 @@ export namespace AddParameter {
 
     export type FunctionScope = PublicFunctionScope | PrivateFunctionScope
 
+    export function globFromScope(scope: FunctionScope) {
+        if (isPrivateFunctionScope(scope)) {
+            return scope.glob;
+        } else {
+            return "**/*.ts"
+        }
+    }
+
     export interface PublicFunctionScope {
-        kind: "PublicFunctionScope"
+        kind: "PublicFunctionScope",
     }
 
     export type PathExpression = string;
 
     export interface PrivateFunctionScope {
         kind: "PrivateFunctionScope",
-        visibility: { glob: string, pxe: PathExpression },
+        glob: string,
+        pxe: PathExpression,
+    }
+
+    export function isPrivateFunctionScope(scope: FunctionScope): scope is PrivateFunctionScope {
+        return scope.kind === "PrivateFunctionScope";
     }
 
     export interface AddParameterRequirement {
@@ -246,12 +266,12 @@ export namespace AddParameter {
         const callWithinClass = `//ClassDeclaration[${callWithinMethod}]`;
 
         // in source, either find a parameter that fits, or receive it.
-        return findMatches(project, TypeScriptES6FileParser, "src/**/*.ts",
+        return findMatches(project, TypeScriptES6FileParser, globFromScope(requirement.scope),
             callWithinFunction)
             .then(matches => _.flatMap(matches, enclosingFunction =>
                 requirementsFromFunctionCall(requirement, enclosingFunction)))
             .then(requirementsFromCallsWithinFunctionCalls =>
-                findMatches(project, TypeScriptES6FileParser, "src/**/*.ts",
+                findMatches(project, TypeScriptES6FileParser, globFromScope(requirement.scope),
                     callWithinClass)
                     .then(classMatches => _.flatMap(classMatches, classMatch => {
                         const classIdentifier = identifier(classMatch);
@@ -279,8 +299,13 @@ export namespace AddParameter {
             enclosingFunctionIdentifier;
 
         const filePath = knownFilePath || (enclosingFunction as LocatedTreeNode).sourceLocation.path;
+        const exportKeywordExpression = `/SyntaxList/ExportKeyword`;
         const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
         const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
+
+        const ekm = evaluateExpression(enclosingFunction, exportKeywordExpression);
+        const scope: FunctionScope = ekm && ekm.length ?
+            { kind: "PublicFunctionScope" } : { kind: "PrivateFunctionScope", glob: filePath, pxe: "/*" };
 
         if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
             const identifier = suitableParameterMatches[0];
@@ -305,7 +330,7 @@ export namespace AddParameter {
                 parameterType: requirement.parameterType,
                 parameterName: requirement.parameterName,
                 populateInTests: requirement.populateInTests,
-                scope: { kind: "PublicFunctionScope" },
+                scope,
             };
             const newParameterForMe: PassArgumentRequirement = {
                 kind: "Pass Argument",
@@ -346,13 +371,14 @@ export namespace AddParameter {
 
         return findMatches(project,
             TypeScriptES6FileParser,
-            "**/" + requirement.enclosingFunction.filePath,
+            requirement.enclosingFunction.filePath,
             fullPathExpression)
             .then(mm => applyPassArgument(mm, requirement));
     }
 
     function applyPassArgument(matches: MatchResult[], requirement: PassArgumentRequirement): Report {
         if (matches.length === 0) {
+            logger.warn("No matches on " + stringify(requirement));
             return reportUnimplemented(requirement, "Function not found");
         } else {
             matches.map(enclosingFunction => {
@@ -469,3 +495,4 @@ export namespace AddParameter {
         return parent.$children.filter(child => child.$name === name);
     }
 }
+

@@ -33,6 +33,9 @@ import implement = AddParameter.implement;
 import Requirement = AddParameter.Requirement;
 import sameRequirement = AddParameter.sameRequirement;
 import findConsequences = AddParameter.findConsequences;
+import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
+import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
+import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
 
 const OldTestCode = `
     const getAClone = (repoName: string = RepoName) => {
@@ -113,7 +116,67 @@ describe("editor to pass the context into the cloned method", () => {
 
 describe("detection of consequences", () => {
 
-    it("when a function with a new parameter is not exported, calls to the same-name function in another file are not affected");
+    it("does not change anything in test/ when Add Parameter is called");
+
+    it("when Add Parameter to a private function, don't pass dummy in tests");
+
+    it("when a function with a new parameter is not exported, calls to the same-name function in another file are not affected", done => {
+
+        const fileToNotChange = "src/notFunciton.ts";
+        const fileToChange = "src/funciton.ts";
+        const input = InMemoryProject.of({
+                path: fileToNotChange,
+                content: `
+        export function thinger() {
+            return privateFunciton("and stuff");
+        }
+        
+        function privateFunciton(s: string) {
+           console.log("this is mine, it is not changing");
+        }\n`,
+            },
+            {
+                path: fileToChange,
+                content: `
+        export function iShouldChange() {
+            return privateFunciton("yarrr");
+        }
+        
+         function privateFunciton(s: string) {
+           console.log("give me your context! I need it!");
+        }
+`,
+            },
+        );
+
+        const original: Requirement =
+            {
+                "kind": "Add Parameter",
+                "functionWithAdditionalParameter": {
+                    name: "privateFunciton",
+                    filePath: "src/DoesntMatter.ts",
+                },
+                "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
+                "parameterName": "context",
+                populateInTests: {
+                    dummyValue: "{}",
+                },
+                scope: { kind: "PrivateFunctionScope", glob: fileToChange, pxe: "/*" },
+            };
+
+        findConsequences(input, [original])
+            .then(consequences => {
+                assert(consequences.some(c =>
+                    c.kind === "Add Parameter"
+                    && c.functionWithAdditionalParameter.name === "iShouldChange"
+                    && c.scope.kind === "PublicFunctionScope",
+                ));
+                assert(!consequences.some(c => c.functionWithAdditionalParameter.filePath === fileToNotChange),
+                    stringify(consequences, null, 2));
+                assert(!consequences.some(c => isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange));
+            })
+            .then(() => done(), done);
+    });
 
     it("detects an exported function and calls it public", done => {
         const fileOfInterest = "src/Classy.ts";
@@ -180,7 +243,7 @@ describe("detection of consequences", () => {
                 const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
                     c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
                 assert(consequenceOfInterest);
-                assert(consequenceOfInterest.scope.kind === "PrivateFunctionScope");
+                assert.equal(consequenceOfInterest.scope.kind, "PrivateFunctionScope");
             })
             .then(() => done(), done);
     });
@@ -348,6 +411,48 @@ describe("detection of consequences", () => {
                 },
             ).then(() => done(), done);
 
+    })
+})
+;
+
+
+
+describe("pass argument", () => {
+
+    it("finds calls inside methods", done => {
+        // const fileOfInterest = "test/Something.ts";
+        // const input = InMemoryProject.of(
+        //     {
+        //         path: fileOfInterest, content: `import \"mocha\";\n
+        //
+        //      myFunction();
+        //      `,
+        //     });
+
+        const input = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
+            "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
+
+
+        const instruction: PassArgumentRequirement = {
+            "kind": "Pass Argument",
+            "enclosingFunction": {
+                "name": "DifferenceEngine.cloneRepo",
+                "filePath": "src/project/diff/DifferenceEngine.ts"
+            },
+            "functionWithAdditionalParameter": {
+                "name": "GitCommandGitProject.cloned",
+                "filePath": "src/project/git/GitCommandGitProject.ts"
+            },
+            "argumentValue": "context",
+        };
+
+        printStructureOfFile(input, "src/project/diff/DifferenceEngine.ts").then(() =>
+        AddParameter.implement(input, instruction).then(() => input.flush())
+            .then(() => {
+                const after = input.findFileSync("src/project/diff/DifferenceEngine.ts").getContentSync();
+                assert(after.includes("cloned(context, "), after)
+            }))
+            .then(() => done(), done)
     })
 });
 
@@ -571,13 +676,21 @@ describe("actually run it", () => {
     // question: how can I turn off debug output?
 
     it("just run it", done => {
-        const realProject = new NodeFsLocalProject("automation-client",
-            "/Users/jessitron/code/atomist/automation-client-ts");
+        const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
+            "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
+
+        function commitDangit(r1: Requirement, report: AddParameter.Report) {
+            if (report.implemented.length === 0) {
+                console.log("Skipping commit for " + stringify(r1));
+                return Promise.resolve();
+            }
+            return realProject.commit(stringify(r1)).then(() => Promise.resolve())
+        }
 
         passContextToFunction({
             name: "GitCommandGitProject.cloned",
             filePath: "src/project/git/GitCommandGitProject.ts",
-        })(realProject)
+        }, commitDangit)(realProject)
             .then(report => {
                 console.log("implemented: " + stringify(report.addParameterReport.implemented, null, 1))
                 console.log("UNIMPLEMENTED: " + stringify(report.addParameterReport.unimplemented, null, 2))
