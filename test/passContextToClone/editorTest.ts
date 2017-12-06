@@ -420,18 +420,19 @@ describe("detection of consequences", () => {
 describe("pass argument", () => {
 
     it("finds calls inside methods", done => {
-        // const fileOfInterest = "test/Something.ts";
-        // const input = InMemoryProject.of(
-        //     {
-        //         path: fileOfInterest, content: `import \"mocha\";\n
-        //
-        //      myFunction();
-        //      `,
-        //     });
+        const fileOfInterest = "src/project/diff/DifferenceEngine.ts";
+        const input = InMemoryProject.of(
+            {
+                path: fileOfInterest, content: `export class DifferenceEngine {
 
-        const input = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
-            "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
-
+    private cloneRepo(githubIssueAuth: GithubIssueAuth, sha: string): Promise<GitProject> {
+        return GitCommandGitProject.cloned(
+            {token: githubIssueAuth.githubToken},
+                new GitHubRepoRef(githubIssueAuth.owner, githubIssueAuth.repo, githubIssueAuth.sha));
+    }
+}
+             `,
+            });
 
         const instruction: PassArgumentRequirement = {
             "kind": "Pass Argument",
@@ -454,7 +455,82 @@ describe("pass argument", () => {
             }))
             .then(() => done(), done)
     })
+
+    it("print path of match", done => {
+        const fileOfInterest = "src/project/diff/DifferenceEngine.ts";
+        const input = InMemoryProject.of(
+            {
+                path: fileOfInterest, content: `export class DifferenceEngine {
+
+    private cloneRepo(githubIssueAuth: GithubIssueAuth, sha: string): Promise<GitProject> {
+        return GitCommandGitProject.cloned(
+            {token: githubIssueAuth.githubToken},
+                new GitHubRepoRef(githubIssueAuth.owner, githubIssueAuth.repo, githubIssueAuth.sha));
+    }
+}
+             `,
+            });
+
+        const instruction: PassArgumentRequirement = {
+            "kind": "Pass Argument",
+            "enclosingFunction": {
+                "name": "DifferenceEngine.cloneRepo",
+                "filePath": "src/project/diff/DifferenceEngine.ts"
+            },
+            "functionWithAdditionalParameter": {
+                "name": "GitCommandGitProject.cloned",
+                "filePath": "src/project/git/GitCommandGitProject.ts"
+            },
+            "argumentValue": "context",
+        };
+
+        pathOfMatch(input, fileOfInterest).then( paths => {
+                const expectedPath = "//ClassDeclaration[/Identifier[@value='DifferenceEngine']]//MethodDeclaration[/Identifier[@value='cloneRepo']]";
+                assert.deepEqual([expectedPath], paths);
+                return findMatches(input, TypeScriptES6FileParser, fileOfInterest,
+                    paths[0]).then(matches => {
+                        assert.equal(identifier(matches[0]), "cloneRepo");
+                })
+            }
+        )
+            .then(() => done(), done)
+    })
 });
+
+function identifier(parent: TreeNode): string {
+    return childrenNamed(parent, "Identifier")[0].$value
+}
+
+function childrenNamed(parent: TreeNode, name: string) {
+    return parent.$children.filter(child => child.$name === name);
+}
+
+function pathOfMatch(project: Project, path: string): Promise<string[]> {
+    return findMatches(project, TypeScriptES6FileParser, path,
+        `/SourceFile//ClassDeclaration//MethodDeclaration`)
+        .then(matches => {
+            return matches.map(m => {
+                return"//" + printMatchHierarchy(m).reverse().join("//");
+            })
+        });
+}
+
+function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] {
+    hierarchy.push(m);
+    if (m.$parent) {
+        return printMatchHierarchy(m.$parent, hierarchy);
+    } else {
+        return _.compact(hierarchy.map(tn => {
+            const identifier = tn.$children.find(c => c.$name === "Identifier");
+            if (identifier) {
+                const identifierTest = `[/Identifier[@value='${identifier.$value}']]`;
+                return `${tn.$name}${identifierTest}`;
+            } else {
+                return undefined;
+            }
+        }));
+    }
+}
 
 describe("populating dummy in test", () => {
 
