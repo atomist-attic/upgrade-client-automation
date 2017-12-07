@@ -138,10 +138,87 @@ describe("editor to pass the context into the cloned method", () => {
 });
 
 describe("detection of consequences", () => {
+    
+    it("should only pass dummy in test/ when Add Parameter is called", done => {
 
-    it("does not change anything in test/ when Add Parameter is called");
+        const fileToNotChange = "test/funciton.ts";
+        const fileToChange = "src/funciton.ts";
+        const input = InMemoryProject.of({
+                path: fileToNotChange,
+                content: `
+        export function iShouldChange() {
+            return privateFunciton("yarrr");
+        }
 
-    it("when Add Parameter to a private function, don't pass dummy in tests");
+        function privateFunciton(s: string) {
+           console.log("give me your context! I need it!");
+        }\n`,
+            },
+            {
+                path: fileToChange,
+                content: `
+        export function iShouldChange() {
+            return privateFunciton("yarrr");
+        }
+
+        function privateFunciton(s: string) {
+           console.log("give me your context! I need it!");
+        }\n`,
+            },
+        );
+
+        const addParameterPublicRequirement: Requirement = {
+            ...addParameterRequirement({
+                name: "privateFunciton",
+                filePath: "src/DoesntMatter.ts",
+            }),
+            scope: { kind: "PublicFunctionScope", glob: fileToChange, pxe: "/*" },
+        };
+
+        findConsequences(input, [addParameterPublicRequirement])
+            .then(consequences => {
+                assert(!consequences.some(c => {
+                    return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.filePath === fileToNotChange;
+                }), stringify(consequences, null, 2));
+                assert(!consequences.some(c => {
+                    return c.kind === "Pass Argument" && c.enclosingFunction.filePath === fileToNotChange;
+                }), stringify(consequences, null, 2));
+            })
+            .then(() => done(), done);
+    });
+
+    it("when Add Parameter to a private function, don't pass dummy in tests", done => {
+
+        const fileToChange = "src/funciton.ts";
+        const input = InMemoryProject.of({
+                path: fileToChange,
+                content: `
+        function iShouldChange() {
+            return privateFunciton("yarrr");
+        }
+
+        function privateFunciton(s: string) {
+           console.log("give me your context! I need it!");
+        }\n`,
+            },
+        );
+
+        const addParameterPrivateRequirement: Requirement = {
+            ...addParameterRequirement({
+                name: "privateFunciton",
+                filePath: "src/DoesntMatter.ts",
+            }),
+            scope: { kind: "PrivateFunctionScope", glob: fileToChange, pxe: "/*" },
+        };
+
+        findConsequences(input, [addParameterPrivateRequirement])
+            .then(consequences => {
+                assert(!consequences.some(c =>
+                    c.kind === "Pass Dummy In Tests",
+                ));
+            })
+            .then(() => done(), done);
+    });
 
     it("when a function with a new parameter is not exported, calls to the same-name function in another file are not affected", done => {
 
