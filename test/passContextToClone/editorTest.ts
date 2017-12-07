@@ -138,7 +138,7 @@ describe("editor to pass the context into the cloned method", () => {
 });
 
 describe("detection of consequences", () => {
-    
+
     it("should only pass dummy in test/ when Add Parameter is called", done => {
 
         const fileToNotChange = "test/funciton.ts";
@@ -378,7 +378,7 @@ describe("detection of consequences", () => {
                 filePath: "src/CodeThatUsesIt.ts",
             })])
             .then(consequences => {
-                assert.equal(consequences.length, 8, stringify(consequences))
+                assert.equal(consequences.length, 7, stringify(consequences))
             })
             .then(() => done(), done);
     });
@@ -407,7 +407,7 @@ describe("detection of consequences", () => {
             assert(addParameterAtEvenHigherLevel);
 
             assert.equal(consequences.length,
-                17, // plausible
+                15, // plausible
                 stringify(consequences, null, 2))
         })
             .then(() => done(), done);

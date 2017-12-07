@@ -296,7 +296,13 @@ export namespace AddParameter {
                     .then(requirementsFromCallsWithinMethods =>
                         requirementsFromCallsWithinMethods.concat(requirementsFromCallsWithinFunctionCalls)),
             )
-            .then((srcConsequences: Requirement[]) => srcConsequences.concat([passDummyInTests]));
+            .then((srcConsequences: Requirement[]) => {
+                if (isPrivateFunctionScope(requirement.scope)) {
+                    return srcConsequences;
+                } else {
+                    return srcConsequences.concat([passDummyInTests]);
+                }
+            });
     }
 
     function requirementsFromFunctionCall(requirement: AddParameterRequirement,
@@ -333,7 +339,7 @@ export namespace AddParameter {
         } else {
             logger.info("Found a call to %s inside a function called %s, no suitable parameter",
                 requirement.functionWithAdditionalParameter, enclosingFunctionName);
-
+            if (filePath.startsWith("test")) { return []; }
             const passNewArgument: AddParameterRequirement = {
                 kind: "Add Parameter",
                 functionWithAdditionalParameter: { name: enclosingFunctionName, filePath },
