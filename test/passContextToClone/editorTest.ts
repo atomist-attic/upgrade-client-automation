@@ -38,6 +38,9 @@ import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
 import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
 import guessPathExpression = AddParameter.guessPathExpression;
 import functionDeclarationFromCallIdentifier = AddParameter.functionDeclarationFromCallIdentifier;
+import { configuration } from "../../src/atomist.config";
+import { logger } from "@atomist/automation-client";
+import { LogCallback, Logger } from "@atomist/automation-client/internal/util/logger";
 
 
 function addParameterRequirement(fci: AddParameter.FunctionCallIdentifier): AddParameterRequirement {
@@ -589,10 +592,16 @@ describe("Adding a parameter", () => {
             realProject.findFileSync(fileOfInterest));
 
         const addParameterInstruction: AddParameterRequirement = {
-            ...addParameterRequirement({
+            kind: "Add Parameter",
+            functionWithAdditionalParameter: {
                 "name": "GitCommandGitProject.cloned",
                 "filePath": "src/project/git/GitCommandGitProject.ts",
-            }),
+            },
+            functionDeclaration: {
+                "filePath": "src/project/git/GitCommandGitProject.ts",
+                pxe: "//ClassDeclaration[/Identifier[@value='GitCommandGitProject']]//MethodDeclaration[/Identifier[@value='cloned']]"
+            },
+            "parameterName": "context",
             "parameterType": {
                 "kind": "local",
                 "name": "HandlerContext",
@@ -615,10 +624,10 @@ describe("Adding a parameter", () => {
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
-                assert(after.includes("public static cloned(context: HandlerContext"), after);
                 assert(after.includes(
                     `import { HandlerContext } from "../../HandlerContext"`),
                     after.split("\n")[0])
+                assert(after.includes("public static cloned(context: HandlerContext"), after);
             }).then(() => done(), done)
 
     });
@@ -719,6 +728,8 @@ describe("actually run it", () => {
     // question: how can I turn off debug output?
 
     it("just run it", done => {
+        (logger as any).level = "info";
+
         const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
             "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
 
