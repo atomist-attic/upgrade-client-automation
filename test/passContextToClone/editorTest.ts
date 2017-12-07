@@ -39,16 +39,6 @@ import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
 import guessPathExpression = AddParameter.guessPathExpression;
 import functionDeclarationFromCallIdentifier = AddParameter.functionDeclarationFromCallIdentifier;
 
-const OldTestCode = `
-    const getAClone = (repoName: string = RepoName) => {
-        const repositoryThatExists = new GitHubRepoRef(Owner, repoName);
-        return GitCommandGitProject.cloned(Creds, repositoryThatExists);
-    };
-
-    it("does another thing", () => {
-       GitCommandGitProject.cloned({ token: "yeah" }, whatever, more, things)
-    });
-`;
 
 function addParameterRequirement(fci: AddParameter.FunctionCallIdentifier): AddParameterRequirement {
     return {
@@ -78,10 +68,23 @@ function getAllMatches(r: RegExp, s: string): string[] {
 
 describe("editor to pass the context into the cloned method", () => {
     it("sends a dummy context into tests, with just enough populated", done => {
-        const functionWeWant = "GitCommandGitProject.cloned";
+
+        const OldTestCode = `
+    const getAClone = (repoName: string = RepoName) => {
+        const repositoryThatExists = new GitHubRepoRef(Owner, repoName);
+        return GitCommandGitProject.cloned(Creds, repositoryThatExists);
+    };
+
+    it("does another thing", () => {
+       GitCommandGitProject.cloned({ token: "yeah" }, whatever, more, things)
+    });
+`;
 
         const input = InMemoryProject.of({ path: "test/something.ts", content: OldTestCode });
-        passContextToFunction({ name: functionWeWant, filePath: "src/project/git/GitCommandGitProject.ts" })(input)
+        passContextToFunction({
+            containingClass: "GitCommandGitProject",
+            name: "cloned", filePath: "src/project/git/GitCommandGitProject.ts",
+        })(input)
             .then(report => input.findFile("test/something.ts"))
             .then(f => f.getContent())
             .then(newTestCode => {
@@ -101,9 +104,13 @@ describe("editor to pass the context into the cloned method", () => {
         const resultProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/after");
 
-        const functionWeWant = "InHere.giveMeYourContext";
+        const functionWeWant = "giveMeYourContext";
 
-        passContextToFunction({ name: functionWeWant, filePath: "src/CodeThatUsesIt.ts" })(mutableProject)
+        passContextToFunction({
+            namespace: "InHere",
+            name: functionWeWant,
+            filePath: "src/CodeThatUsesIt.ts",
+        })(mutableProject)
             .then(report => {
                 const modified = mutableProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 const expected = resultProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
@@ -377,7 +384,7 @@ describe("pass argument", () => {
         const instruction: PassArgumentRequirement = {
             "kind": "Pass Argument",
             "enclosingFunction": {
-                "pxe": "//ClassDeclaration[/Identifier[@value='DifferenceEngine]]//MethodDeclaration[/Identifier[@value='cloneRepo']]",
+                "pxe": "//ClassDeclaration[/Identifier[@value='DifferenceEngine']]//MethodDeclaration[/Identifier[@value='cloneRepo']]",
                 "filePath": "src/project/diff/DifferenceEngine.ts",
             },
             "functionWithAdditionalParameter": {
@@ -557,7 +564,7 @@ describe("Adding a parameter", () => {
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
-                assert(after.includes("public static giveMeYourContext(context: HanderContext, stuff: string)"), after)
+                assert(after.includes("public static giveMeYourContext(context: HandlerContext, stuff: string)"), after)
             }).then(() => done(), done)
 
     });
@@ -584,7 +591,7 @@ describe("Adding a parameter", () => {
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
-                assert(after.includes("export function giveMeYourContext(context: HanderContext, stuff: string)"), after)
+                assert(after.includes("export function giveMeYourContext(context: HandlerContext, stuff: string)"), after)
             }).then(() => done(), done)
 
     });
@@ -592,8 +599,8 @@ describe("Adding a parameter", () => {
     it("Adds the right type", done => {
         const input = copyOfBefore();
         AddParameter.implement(input, addParameterRequirement({
-                name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
-            },)).then(changed => input.flush().then(() => changed))
+            name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
+        },)).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 assert(after.includes(
@@ -603,9 +610,10 @@ describe("Adding a parameter", () => {
 
     it("Adds an import file too", done => {
         const input = copyOfBefore();
-        AddParameter.implement(input, {...addParameterRequirement( {
+        AddParameter.implement(input, {
+            ...addParameterRequirement({
                 name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
-            }, ),
+            },),
             parameterType: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
         }).then(changed => input.flush().then(() => changed))
             .then(report => {

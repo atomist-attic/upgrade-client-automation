@@ -27,6 +27,7 @@ import { EditResult, successfulEdit } from "@atomist/automation-client/operation
 import stringify = require("json-stringify-safe");
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import { AddImport } from "./manipulateImports";
+import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
 
 
 export interface MySpecialEditReport extends EditResult {
@@ -36,10 +37,7 @@ export interface MySpecialEditReport extends EditResult {
 export type BetweenFunction = (requirement: AddParameter.Requirement, report: AddParameter.Report) => Promise<void>
 const doNothing = () => Promise.resolve();
 
-export function passContextToFunction(params: {
-    name: string,
-    filePath: string,
-}, betweenRequirements: BetweenFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+export function passContextToFunction(params: FunctionCallIdentifier, betweenRequirements: BetweenFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
         const handlerContextType: AddImport.ImportIdentifier = {
             kind: "local",
@@ -413,7 +411,7 @@ export namespace AddParameter {
     }
 
     function functionDeclarationPathExpression(fn: FunctionCallIdentifier): PathExpression {
-        const declarationOfInterest = `/Identifier[@value='${fn.name}'`;
+        const declarationOfInterest = `/Identifier[@value='${fn.name}']`;
 
         if (fn.containingClass) {
             return `//ClassDeclaration[/Identifier[@value='${fn.containingClass}']]//MethodDeclaration[${declarationOfInterest}]`;
@@ -421,7 +419,7 @@ export namespace AddParameter {
         if (fn.namespace) {
             return `//ModuleDeclaration[/Identifier[@value='${fn.namespace}']]/ModuleBlock//FunctionDeclaration[${declarationOfInterest}]`;
         }
-        return `//FunctionDeclaration[${declarationOfInterest}]]`;
+        return `//FunctionDeclaration[${declarationOfInterest}]`;
     }
 
     /*
@@ -465,8 +463,9 @@ export namespace AddParameter {
         return AddImport.addImport(project,
             requirement.functionDeclaration.filePath,
             requirement.parameterType)
-            .then(importAdded =>
-                findMatches(project, TypeScriptES6FileParser, requirement.functionDeclaration.filePath,
+            .then(importAdded => {
+                logger.info("Exercising path expression: " + requirement.functionDeclaration.pxe)
+                return findMatches(project, TypeScriptES6FileParser, requirement.functionDeclaration.filePath,
                     requirement.functionDeclaration.pxe)
                     .then(matches => {
                         if (matches.length === 0) {
@@ -485,7 +484,8 @@ export namespace AddParameter {
                             openParen.$value = `(${requirement.parameterName}: ${requirement.parameterType.name}, `;
                             return reportImplemented(requirement);
                         }
-                    }));
+                    })
+            });
     }
 
     function requireExactlyOne(m: TreeNode[], msg: string): TreeNode {
