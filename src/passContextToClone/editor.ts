@@ -47,7 +47,6 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenReq
         const originalRequirement: AddParameter.Requirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: params,
-            functionDeclaration: AddParameter.functionDeclarationFromCallIdentifier(params),
             parameterType: handlerContextType,
             parameterName: "context",
             populateInTests: {
@@ -133,8 +132,34 @@ export namespace AddParameter {
      */
     export type Requirement = AddParameterRequirement | PassArgumentRequirement | PassDummyInTestsRequirement
 
+    export type EnclosingScope = ClassAroundMethod | EnclosingNamespace
+
+    export interface ClassAroundMethod {
+        kind: "class around method",
+        name: string,
+        exported: boolean,
+        enclosingScope?: EnclosingScope
+    }
+
+    export interface EnclosingNamespace {
+        kind: "enclosing namespace",
+        name: string,
+        exported: boolean,
+        enclosingScope?: EnclosingScope
+    }
+    export function isClassAroundMethod(es: EnclosingScope): es is ClassAroundMethod {
+        return es.kind === "class around method";
+    }
+
+    function isSameScope(s1: EnclosingScope, s2: EnclosingScope): boolean {
+        if (s1 === undefined && s2 === undefined) {
+            return true
+        }
+        return s1.kind === s2.kind && s1.name === s2.name && isSameScope(s1.enclosingScope, s2.enclosingScope)
+    }
+
     export type FunctionCallIdentifier = {
-        containingClass?: string; namespace?: string;
+        enclosingScope?: EnclosingScope,
         name: string, filePath: string
     };
 
@@ -147,13 +172,7 @@ export namespace AddParameter {
     function sameFunctionCallIdentifier(r1: FunctionCallIdentifier, r2: FunctionCallIdentifier) {
         return r1.name === r2.name &&
             r1.filePath === r2.filePath &&
-            r1.containingClass === r2.containingClass &&
-            r2.namespace === r2.namespace
-    }
-
-    function sameDeclarationLocation(r1: DeclarationLocation, r2: DeclarationLocation) {
-        return r1.pxe === r2.pxe &&
-            r1.filePath === r2.filePath
+            isSameScope(r1.enclosingScope, r2.enclosingScope)
     }
 
     export function sameRequirement(r1: Requirement, r2: Requirement): boolean {
@@ -161,7 +180,7 @@ export namespace AddParameter {
             sameFunctionCallIdentifier(r1.functionWithAdditionalParameter, r2.functionWithAdditionalParameter) &&
             r1.functionWithAdditionalParameter.filePath === r2.functionWithAdditionalParameter.filePath &&
             (!isPassArgumentRequirement(r1) ||
-                sameDeclarationLocation(r1.enclosingFunction, (r2 as PassArgumentRequirement).enclosingFunction))
+                sameFunctionCallIdentifier(r1.enclosingFunction, (r2 as PassArgumentRequirement).enclosingFunction))
     }
 
     export type FunctionScope = PublicFunctionScope | PrivateFunctionScope
@@ -193,7 +212,6 @@ export namespace AddParameter {
     export interface AddParameterRequirement {
         kind: "Add Parameter";
         functionWithAdditionalParameter: FunctionCallIdentifier;
-        functionDeclaration: DeclarationLocation;
         parameterType: AddImport.ImportIdentifier;
         parameterName: string;
         populateInTests: {
@@ -228,12 +246,16 @@ export namespace AddParameter {
 
     export interface PassArgumentRequirement {
         kind: "Pass Argument"
-        enclosingFunction: DeclarationLocation,
+        enclosingFunction: FunctionCallIdentifier,
         functionWithAdditionalParameter: FunctionCallIdentifier;
         argumentValue: string;
         why?: any;
     }
 
+    /*
+     * Requirements can have consequences, which are additional changes
+     * that have to be implemented in order to implement this one.
+     */
     export function findConsequencesOfOne(project: Project, requirement: Requirement): Promise<Requirement[]> {
         if (isAddParameterRequirement(requirement)) {
             logger.info("Finding consequences of: " + stringify(requirement, null, 1));
@@ -271,31 +293,16 @@ export namespace AddParameter {
         };
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
         const callWithinFunction = `//FunctionDeclaration[${innerExpression}]`;
-        const callWithinMethod = `//ClassDeclaration//MethodDeclaration[${innerExpression}]`;
-        const callWithinClass = `//ClassDeclaration[${callWithinMethod}]`;
+        const callWithinMethod = `//MethodDeclaration[${innerExpression}]`;
+        logger.info("Looking for calls in : " + callWithinMethod);
+        logger.info("Looking for calls in : " + callWithinFunction);
+        logger.info("looking in: " + globFromScope(requirement.scope));
 
         // in source, either find a parameter that fits, or receive it.
         return findMatches(project, TypeScriptES6FileParser, globFromScope(requirement.scope),
-            callWithinFunction)
+            callWithinFunction + "|" + callWithinMethod)
             .then(matches => _.flatMap(matches, enclosingFunction =>
                 requirementsFromFunctionCall(requirement, enclosingFunction)))
-            .then(requirementsFromCallsWithinFunctionCalls =>
-                findMatches(project, TypeScriptES6FileParser, globFromScope(requirement.scope),
-                    callWithinClass)
-                    .then(classMatches => _.flatMap(classMatches, classMatch => {
-                        // we couldn't go straight to the function because we wanted the class identifier
-                        const classIdentifier = identifier(classMatch);
-                        // rod: these appear not to exist on the nodes returned from evaluateExpression
-                        const filePath = (classMatch as LocatedTreeNode).sourceLocation.path;
-                        const methods = classMatch.evaluateExpression(callWithinMethod);
-                        logger.info("how many methods? " + methods.length);
-                        return _.flatMap(methods,
-                            enclosingFunction =>
-                                requirementsFromFunctionCall(requirement, enclosingFunction, classIdentifier, filePath))
-                    }))
-                    .then(requirementsFromCallsWithinMethods =>
-                        requirementsFromCallsWithinMethods.concat(requirementsFromCallsWithinFunctionCalls)),
-            )
             .then((srcConsequences: Requirement[]) => {
                 if (isPrivateFunctionScope(requirement.scope)) {
                     return srcConsequences;
@@ -306,15 +313,15 @@ export namespace AddParameter {
     }
 
     function requirementsFromFunctionCall(requirement: AddParameterRequirement,
-                                          enclosingFunction: MatchResult,
-                                          namespace?: string,
-                                          knownFilePath?: string): Requirement[] {
-        const enclosingFunctionIdentifier = identifier(enclosingFunction);
-        const enclosingFunctionName = namespace ?
-            namespace + "." + enclosingFunctionIdentifier :
-            enclosingFunctionIdentifier;
+                                          enclosingFunction: MatchResult): Requirement[] {
 
-        const filePath = knownFilePath || (enclosingFunction as LocatedTreeNode).sourceLocation.path;
+        const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
+        if (filePath.startsWith("test")) { return []; } // skip tests
+
+        const enclosingFunctionName = identifier(enclosingFunction);
+
+        console.log("yo yo here is one: " + enclosingFunctionName)
+
         const exportKeywordExpression = `/SyntaxList/ExportKeyword`;
         const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
         const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
@@ -331,7 +338,7 @@ export namespace AddParameter {
 
             const instruction: PassArgumentRequirement = {
                 kind: "Pass Argument",
-                enclosingFunction: { pxe: guessPathExpression(enclosingFunction), filePath },
+                enclosingFunction: { enclosingScope: determineScope(enclosingFunction), name: enclosingFunctionName, filePath },
                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                 argumentValue: identifier.$value,
             };
@@ -339,11 +346,9 @@ export namespace AddParameter {
         } else {
             logger.info("Found a call to %s inside a function called %s, no suitable parameter",
                 requirement.functionWithAdditionalParameter, enclosingFunctionName);
-            if (filePath.startsWith("test")) { return []; }
             const passNewArgument: AddParameterRequirement = {
                 kind: "Add Parameter",
-                functionWithAdditionalParameter: { name: enclosingFunctionName, filePath },
-                functionDeclaration: { pxe: guessPathExpression(enclosingFunction), filePath },
+                functionWithAdditionalParameter: { enclosingScope: determineScope(enclosingFunction), name: enclosingFunctionName, filePath },
                 parameterType: requirement.parameterType,
                 parameterName: requirement.parameterName,
                 populateInTests: requirement.populateInTests,
@@ -351,7 +356,7 @@ export namespace AddParameter {
             };
             const newParameterForMe: PassArgumentRequirement = {
                 kind: "Pass Argument",
-                enclosingFunction: { pxe: guessPathExpression(enclosingFunction), filePath },
+                enclosingFunction: { enclosingScope: determineScope(enclosingFunction), name: enclosingFunctionName, filePath },
                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                 argumentValue: requirement.parameterName,
             };
@@ -373,19 +378,23 @@ export namespace AddParameter {
         return Promise.resolve(reportUnimplemented(requirement, "I don't know how to implement that yet"))
     }
 
-    function functionCallPathExpression(fn: FunctionCallIdentifier) {
-        if (fn.containingClass) {
-            return `//CallExpression[/PropertyAccessExpression[@value='${fn.containingClass}.${fn.name}']]`
+    function propertyAccessExpression(s: EnclosingScope, soFar: string): string {
+        if (s === undefined) {
+            return soFar;
         }
-        if (fn.namespace) {
-            return `//CallExpression[/PropertyAccessExpression[@value='${fn.namespace}.${fn.name}']]`
+        return propertyAccessExpression(s.enclosingScope, s.name + "." + soFar);
+    }
+
+    function functionCallPathExpression(fn: FunctionCallIdentifier) {
+        if (fn.enclosingScope) {
+            return `//CallExpression[/PropertyAccessExpression[@value='${propertyAccessExpression(fn.enclosingScope, fn.name)}']]`
         }
         return `//CallExpression[/Identifier[@value='${fn.name}']]`;
     }
 
     function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Report> {
 
-        const fullPathExpression = requirement.enclosingFunction.pxe +
+        const fullPathExpression = functionDeclarationPathExpression(requirement.enclosingFunction) +
             functionCallPathExpression(requirement.functionWithAdditionalParameter);
 
         return findMatches(project,
@@ -409,30 +418,29 @@ export namespace AddParameter {
         }
     }
 
-    export function functionDeclarationFromCallIdentifier(fn: FunctionCallIdentifier): DeclarationLocation {
-        return {
-            filePath: fn.filePath,
-            pxe: functionDeclarationPathExpression(fn),
+    function scopePathExpressionComponents(s: EnclosingScope, soFar: string[] = []): string[] {
+        if (s === undefined) {
+            return soFar;
         }
+        const component = isClassAroundMethod(s) ?
+            `ClassDeclaration[/Identifier[@value='${s.name}']]` :
+            `ModuleDeclaration[/Identifier[@value='${s.name}']]/ModuleBlock`;
+        return [component].concat(soFar)
     }
 
     function functionDeclarationPathExpression(fn: FunctionCallIdentifier): PathExpression {
-        const declarationOfInterest = `/Identifier[@value='${fn.name}']`;
+        const identification = `[/Identifier[@value='${fn.name}']]`;
+        const methodOrFunction = fn.enclosingScope && isClassAroundMethod(fn.enclosingScope) ? "MethodDeclaration" : "FunctionDeclaration";
 
-        if (fn.containingClass) {
-            return `//ClassDeclaration[/Identifier[@value='${fn.containingClass}']]//MethodDeclaration[${declarationOfInterest}]`;
-        }
-        if (fn.namespace) {
-            return `//ModuleDeclaration[/Identifier[@value='${fn.namespace}']]/ModuleBlock//FunctionDeclaration[${declarationOfInterest}]`;
-        }
-        return `//FunctionDeclaration[${declarationOfInterest}]`;
+        const components = scopePathExpressionComponents(fn.enclosingScope).concat([methodOrFunction + identification]);
+        return "//" + components.join("//");
     }
 
     /*
     * Implementation: find all the calls in the test sources and pass a dummy argument
     */
     function passDummyInTests(project: Project, requirement: PassDummyInTestsRequirement): Promise<Report> {
-        return findMatches(project, TypeScriptES6FileParser, "test/**/*.ts",
+        return findMatches(project, TypeScriptES6FileParser, "test*/**/*.ts",
             functionCallPathExpression(requirement.functionWithAdditionalParameter))
             .then(matches => {
                 if (matches.length === 0) {
@@ -467,20 +475,20 @@ export namespace AddParameter {
 
     function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
         return AddImport.addImport(project,
-            requirement.functionDeclaration.filePath,
+            requirement.functionWithAdditionalParameter.filePath,
             requirement.parameterType)
             .then(importAdded => {
-                logger.info("Exercising path expression: " + requirement.functionDeclaration.pxe)
-                return findMatches(project, TypeScriptES6FileParser, requirement.functionDeclaration.filePath,
-                    requirement.functionDeclaration.pxe)
+                logger.info("Exercising path expression: " + functionDeclarationPathExpression(requirement.functionWithAdditionalParameter))
+                return findMatches(project, TypeScriptES6FileParser, requirement.functionWithAdditionalParameter.filePath,
+                    functionDeclarationPathExpression(requirement.functionWithAdditionalParameter))
                     .then(matches => {
                         if (matches.length === 0) {
                             logger.warn("Found 0 function declarations for " +
-                                requirement.functionDeclaration.pxe + " in " +
-                                requirement.functionDeclaration.filePath);
+                                functionDeclarationPathExpression(requirement.functionWithAdditionalParameter) + " in " +
+                                requirement.functionWithAdditionalParameter.filePath);
                             return reportUnimplemented(requirement, "Function declaration not found");
                         } else if (1 < matches.length) {
-                            logger.warn("Doing Nothing; Found more than one function declaration at " + requirement.functionDeclaration.pxe);
+                            logger.warn("Doing Nothing; Found more than one function declaration at " + functionDeclarationPathExpression(requirement.functionWithAdditionalParameter));
                             return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
                         } else {
                             const functionDeclaration = matches[0];
@@ -511,6 +519,43 @@ export namespace AddParameter {
 
     export function guessPathExpression(tn: TreeNode): string {
         return "//" + printMatchHierarchy(tn).reverse().join("//");
+    }
+
+    export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScope?: EnclosingScope): EnclosingScope | undefined {
+        if (!tn.$parent) {
+            return baseScope;
+        } else {
+            switch (tn.$parent.$name) {
+                case "ClassDeclaration":
+                    const thisLevel: ClassAroundMethod = { kind: "class around method",
+                        name: identifier(tn.$parent),
+                        exported: true // TODO: really check
+                    };
+                    if (topLevel) {
+                        topLevel.enclosingScope = thisLevel;
+                    }
+                    return determineScope(tn.$parent, thisLevel, baseScope || thisLevel);
+                case "ModuleDeclaration":
+                    if (isNamespaceModule(tn.$parent)) {
+                        const thisLevel: EnclosingNamespace = {
+                            kind: "enclosing namespace",
+                            name: identifier(tn.$parent),
+                            exported: true // TODO: really check
+                        };
+                        if (topLevel) {
+                            topLevel.enclosingScope = thisLevel;
+                        }
+                        return determineScope(tn.$parent, thisLevel, baseScope || thisLevel);
+                    } // else fall through
+                default:
+                    // nothing interesting at this level
+                    return determineScope(tn.$parent, topLevel, baseScope);
+            }
+        }
+    }
+
+    function isNamespaceModule(tn: TreeNode): boolean {
+        return tn.$children.some(c => c.$name === "ModuleBlock")
     }
 
     function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] {
