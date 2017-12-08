@@ -17,7 +17,7 @@
 import "mocha";
 import * as assert from "power-assert";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
-import { AddParameter, passContextToFunction } from "../../src/passContextToClone/editor";
+import { AddParameter, Changeset, describeChangeset, passContextToFunction } from "../../src/passContextToClone/editor";
 import * as stringify from "json-stringify-safe";
 
 import * as appRoot from "app-root-path";
@@ -34,9 +34,9 @@ import AddParameterRequirement = AddParameter.AddParameterRequirement;
 import implement = AddParameter.implement;
 import Requirement = AddParameter.Requirement;
 import sameRequirement = AddParameter.sameRequirement;
-import findConsequences = AddParameter.findConsequences;
 import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
 import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
+import changesetForRequirement = AddParameter.changesetForRequirement;
 
 
 function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameterRequirement {
@@ -146,6 +146,10 @@ describe("editor to pass the context into the cloned method", () => {
 
 describe("detection of consequences", () => {
 
+    function allRequirements(changeset: Changeset): Requirement[] {
+        return _.flatMap(changeset.prerequisites, cs => allRequirements(cs)).concat(changeset.requirements);
+    }
+
     describe("Add Parameter leads to populating dummy in tests", () => {
 
         it("should only pass dummy in test/ when Add Parameter is called", done => {
@@ -183,7 +187,8 @@ describe("detection of consequences", () => {
                 }),
             };
 
-            findConsequences(input, [addParameterPublicRequirement])
+            changesetForRequirement(input, addParameterPublicRequirement)
+                .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c => {
                         return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.filePath === fileToNotChange;
@@ -219,7 +224,8 @@ describe("detection of consequences", () => {
                 }),
             };
 
-            findConsequences(input, [addParameterPrivateRequirement])
+            changesetForRequirement(input, addParameterPrivateRequirement)
+                .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c =>
                         c.kind === "Pass Dummy In Tests",
@@ -268,7 +274,8 @@ describe("detection of consequences", () => {
                 }),
             };
 
-            findConsequences(input, [original])
+            changesetForRequirement(input, original)
+                .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
                         c.kind === "Add Parameter"
@@ -299,7 +306,8 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => findConsequences(input, [original]))
+                .then(() => changesetForRequirement(input, original))
+                .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
                         c.kind === "Pass Argument" && c.enclosingFunction.enclosingScope.name === "Classy"));
@@ -331,7 +339,8 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => findConsequences(input, [original]))
+                .then(() => changesetForRequirement(input, original))
+                .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c => c.kind === "Pass Argument" && c.enclosingFunction.enclosingScope.name === "Classy"),
                         stringify(consequences, null, 2));
@@ -365,7 +374,8 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => findConsequences(input, [original]))
+                .then(() =>  changesetForRequirement(input, original)
+                    .then(allRequirements))
                 .then(consequences => {
                     const c = consequences.find(c => c.kind === "Pass Argument" &&
                         c.enclosingFunction.enclosingScope.name === "Classy" &&
@@ -397,7 +407,8 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => findConsequences(input, [original]))
+                .then(() =>   changesetForRequirement(input, original)
+                    .then(allRequirements))
                 .then(consequences => {
                     assert(consequences.some(c => {
                         return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger"
@@ -423,7 +434,8 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => findConsequences(input, [original]))
+                .then(() =>   changesetForRequirement(input, original)
+                    .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
                         c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
@@ -446,17 +458,19 @@ describe("detection of consequences", () => {
            private thinger() {
                 return Spacey.giveMeYourContext("and stuff");
            }
-        }\n`});
+        }\n`,
+            });
 
             const original: Requirement =
                 addParameterRequirement({
-                    enclosingScope: {kind: "enclosing namespace", name: "Spacey", exported: true},
+                    enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                     name: "giveMeYourContext",
                     filePath: "src/DoesntMatter.ts",
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => findConsequences(input, [original]))
+                .then(() =>   changesetForRequirement(input, original)
+                    .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
                         c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
@@ -479,17 +493,19 @@ describe("detection of consequences", () => {
            protected thinger() {
                 return Spacey.giveMeYourContext("and stuff");
            }
-        }\n`});
+        }\n`,
+            });
 
             const original: Requirement =
                 addParameterRequirement({
-                    enclosingScope: {kind: "enclosing namespace", name: "Spacey", exported: true},
+                    enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                     name: "giveMeYourContext",
                     filePath: "src/DoesntMatter.ts",
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => findConsequences(input, [original]))
+                .then(() =>   changesetForRequirement(input, original)
+                    .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
                         c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
@@ -510,7 +526,8 @@ describe("detection of consequences", () => {
             filePath: "src/CodeThatUsesIt.ts",
         },);
 
-        AddParameter.findConsequences(input, [original])
+        AddParameter.changesetForRequirement(input, original)
+            .then(allRequirements)
             .then(consequences => {
                 assert(consequences.some(o => sameRequirement(o, original)))
             }).then(() => done(), done);
@@ -520,11 +537,11 @@ describe("detection of consequences", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        AddParameter.findConsequences(thisProject,
-            [addParameterRequirement({
-                name: "exportedDoesNotYetHaveContext",
-                filePath: "src/CodeThatUsesIt.ts",
-            })])
+        changesetForRequirement(thisProject, addParameterRequirement({
+            name: "exportedDoesNotYetHaveContext",
+            filePath: "src/CodeThatUsesIt.ts",
+        }))
+            .then(allRequirements)
             .then(consequences => {
                 assert.equal(consequences.length, 7, stringify(consequences))
             })
@@ -535,29 +552,30 @@ describe("detection of consequences", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        AddParameter.findConsequences(thisProject,
-            [addParameterRequirement({
-                enclosingScope: { kind: "enclosing namespace", name: "InHere", exported: true },
-                name: "giveMeYourContext",
-                filePath: "src/CodeThatUsesIt.ts",
-            })]).then(consequences => {
+        changesetForRequirement(thisProject, addParameterRequirement({
+            enclosingScope: { kind: "enclosing namespace", name: "InHere", exported: true },
+            name: "giveMeYourContext",
+            filePath: "src/CodeThatUsesIt.ts",
+        }))
+            .then(allRequirements)
+            .then(consequences => {
 
-            const addParameterAtHigherLevel = consequences.find(c =>
-                AddParameter.isAddParameterRequirement(c) &&
-                c.functionWithAdditionalParameter.name === "usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext");
+                const addParameterAtHigherLevel = consequences.find(c =>
+                    AddParameter.isAddParameterRequirement(c) &&
+                    c.functionWithAdditionalParameter.name === "usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext");
 
-            assert(addParameterAtHigherLevel, stringify(consequences.filter(AddParameter.isAddParameterRequirement), null, 2));
+                assert(addParameterAtHigherLevel, stringify(consequences.filter(AddParameter.isAddParameterRequirement), null, 2));
 
-            const addParameterAtEvenHigherLevel = consequences.find(c =>
-                AddParameter.isAddParameterRequirement(c) &&
-                c.functionWithAdditionalParameter.name === "andEvenMoreStuff");
+                const addParameterAtEvenHigherLevel = consequences.find(c =>
+                    AddParameter.isAddParameterRequirement(c) &&
+                    c.functionWithAdditionalParameter.name === "andEvenMoreStuff");
 
-            assert(addParameterAtEvenHigherLevel);
+                assert(addParameterAtEvenHigherLevel);
 
-            assert.equal(consequences.length,
-                15, // plausible
-                stringify(consequences, null, 2))
-        })
+                assert.equal(consequences.length,
+                    15, // plausible
+                    stringify(consequences, null, 2))
+            })
             .then(() => done(), done);
     }).timeout(20000);
 
@@ -770,7 +788,7 @@ describe("Adding a parameter", () => {
         const addParameterInstruction: AddParameterRequirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: {
-                enclosingScope: {kind: "class around method", name: "GitCommandGitProject", exported: true},
+                enclosingScope: { kind: "class around method", name: "GitCommandGitProject", exported: true },
                 "name": "cloned",
                 "filePath": "src/project/git/GitCommandGitProject.ts",
                 access: { kind: "PublicFunctionAccess" },
@@ -917,12 +935,12 @@ describe("actually run it", () => {
         const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
             "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
 
-        function commitDangit(r1: Requirement, report: AddParameter.Report) {
+        function commitDangit(r1: Changeset, report: AddParameter.Report) {
             if (report.implemented.length === 0) {
                 console.log("Skipping commit for " + stringify(r1));
                 return Promise.resolve();
             }
-            return realProject.commit(stringify(r1)).then(() => Promise.resolve())
+            return realProject.commit(describeChangeset(r1)).then(() => Promise.resolve())
         }
 
         // printStructureOfFile(realProject, "src/project/git/GitCommandGitProject.ts")

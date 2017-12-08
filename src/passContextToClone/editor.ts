@@ -28,16 +28,28 @@ import stringify = require("json-stringify-safe");
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import { AddImport } from "./manipulateImports";
 import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
+import Requirement = AddParameter.Requirement;
 
 
 export interface MySpecialEditReport extends EditResult {
     addParameterReport: AddParameter.Report
 }
 
-export type BetweenFunction = (requirement: AddParameter.Requirement, report: AddParameter.Report) => Promise<void>
+
+export interface Changeset {
+    titleRequirement: Requirement,
+    requirements: Requirement[],
+    prerequisites: Changeset[],
+}
+
+export function describeChangeset(cs: Changeset): string {
+    return `Changeset for: <${AddParameter.describeRequirement(cs.titleRequirement)}>, with ${cs.requirements.length} changes`
+}
+
+export type PerChangesetFunction = (changeset: Changeset, report: AddParameter.Report) => Promise<void>
 const doNothing = () => Promise.resolve();
 
-export function passContextToFunction(params: FunctionCallIdentifier, betweenRequirements: BetweenFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+export function passContextToFunction(params: FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
         const handlerContextType: AddImport.ImportIdentifier = {
             kind: "local",
@@ -56,12 +68,20 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenReq
             why: "I want to use the context in here",
         };
 
-        return AddParameter.findConsequences(p, [originalRequirement])
-            .then(reqs => {
-                logger.info("implementing " + reqs.length + " requirements: " + stringify(reqs, null, 1));
-                return reqs
+        return AddParameter.changesetForRequirement(p, originalRequirement)
+            .then(changesetTree => {
+                // man, I wish I could find my TreePrinter
+                logger.info(describeChangeset(changesetTree));
+                return changesetTree;
             })
-            .then(reqs => implementInSequenceWithFlushes(p, reqs, betweenRequirements))
+            .then(linearizeChangesets)
+            .then(changesets => {
+                logger.info("implementing " + changesets.length + " changesets: ");
+                changesets.map(describeChangeset).forEach(s => logger.info(s));
+                return changesets
+            })
+            .then(changesets =>
+                implementChangesets(p, changesets, betweenChangesets))
             .then(report => {
                 logger.info("Report: " + stringify(report, null, 2));
                 return {
@@ -72,14 +92,37 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenReq
     }
 }
 
-function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[],
-                                        betweenRequirements: BetweenFunction) {
+/*
+ * return an ordered list of changesets, such that each changeset
+ * comes after all of its prerequisites.
+ */
+function linearizeChangesets(top: Changeset): Changeset[] {
+    if (top.prerequisites.length === 0) {
+        return [top];
+    } else {
+        const beforeMe = _.flatMap(top.prerequisites, linearizeChangesets);
+        return beforeMe.concat([top])
+    }
+}
+
+
+function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[]) {
     return activities.reduce(
         (pp: Promise<AddParameter.Report>, r1: AddParameter.Requirement) => pp
             .then(allTheReportsFromBefore => AddParameter.implement(project, r1)
                 .then((report1) => project.flush()
-                    .then(() => betweenRequirements(r1, report1))
                     .then(() => AddParameter.combine(allTheReportsFromBefore, report1)))),
+        Promise.resolve(AddParameter.emptyReport));
+}
+
+function implementChangesets(project: Project, activities: Changeset[],
+                             betweenChangesets: PerChangesetFunction) {
+    return activities.reduce(
+        (pp: Promise<AddParameter.Report>, c1: Changeset) =>
+            pp.then(allTheReportsFromBefore =>
+                implementInSequenceWithFlushes(project, c1.requirements)
+                    .then((report1) => betweenChangesets(c1, report1)
+                        .then(() => AddParameter.combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(AddParameter.emptyReport));
 }
 
@@ -226,6 +269,10 @@ export namespace AddParameter {
         why?: any;
     }
 
+    function describeAddParameter(r: AddParameterRequirement): string {
+        return `Add parameter "${r.parameterName}: ${r.parameterType.name} to ${r.functionWithAdditionalParameter.name} in ${r.functionWithAdditionalParameter.filePath}`
+    }
+
     export interface PassDummyInTestsRequirement {
         kind: "Pass Dummy In Tests";
         functionWithAdditionalParameter: FunctionCallIdentifier;
@@ -255,39 +302,93 @@ export namespace AddParameter {
         return r.kind === "Pass Argument";
     }
 
+    export function describeRequirement(r: Requirement): string {
+        if (isAddParameterRequirement(r)) {
+            return describeAddParameter(r)
+        } else {
+            ;
+            return stringify(r);
+        }
+    }
+
     /*
      * Requirements can have consequences, which are additional changes
      * that have to be implemented in order to implement this one.
      */
-    export function findConsequencesOfOne(project: Project, requirement: Requirement): Promise<Requirement[]> {
+    function findConsequencesOfOne(project: Project, requirement: Requirement): Promise<Consequences> {
         if (isAddParameterRequirement(requirement)) {
             logger.info("Finding consequences of: " + stringify(requirement, null, 1));
-            return findConsequencesOfAddParameter(project, requirement).then(consequences => {
-                logger.info("Found " + consequences.length + " consequences");
-                return consequences.map(c => ({ ...c, why: requirement }))
-            });
+            return findConsequencesOfAddParameter(project, requirement);
         } else {
-            return Promise.resolve([]);
+            return Promise.resolve(emptyConsequences);
         }
     }
 
-    export function findConsequences(project: Project, unchecked: Requirement[],
-                                     checked: Requirement[] = []): Promise<Requirement[]> {
+    export function changesetForRequirement(project: Project, requirement: Requirement): Promise<Changeset> {
+        return findConsequences(project, [requirement], [], [])
+            .then(theseConsequences => Promise.all(
+                theseConsequences.prerequisiteChanges
+                    .map(r => changesetForRequirement(project, r)))
+                .then(prerequisiteChangesets =>
+                    ({
+                        titleRequirement: requirement,
+                        requirements: theseConsequences.concomitantChanges,
+                        prerequisites: prerequisiteChangesets,
+                    })));
+    }
+
+    /**
+     *  Find all concomitant changes and their prerequisite requirements
+     *  unchecked: concomitant changes whose consequences we haven't calculated. grows as more are discovered
+     *  checked: concomitant changes whose consequences are already calculated and in the lists; accumulate and dedup
+     *  prerequisites: prerequisite changes from any of the checked concomitant changes; accumulate only
+     */
+    function findConsequences(project: Project,
+                              unchecked: Requirement[],
+                              checked: Requirement[],
+                              prerequisites: Requirement[]): Promise<Consequences> {
         if (unchecked.length === 0) {
-            return Promise.resolve(checked);
+            return Promise.resolve({ concomitantChanges: checked, prerequisiteChanges: prerequisites });
         }
         const thisOne = unchecked.pop(); // mutation
         if (checked.some(o => sameRequirement(o, thisOne))) {
             logger.info("Already checked " + stringify(thisOne));
-            return findConsequences(project, unchecked, checked);
+            return findConsequences(project, unchecked, checked, prerequisites);
         }
-        return findConsequencesOfOne(project, thisOne).then(theseReqs => {
+        return findConsequencesOfOne(project, thisOne).then(consequences => {
             checked.push(thisOne);
-            return findConsequences(project, unchecked.concat(theseReqs), checked)
+            return findConsequences(project,
+                unchecked.concat(consequences.concomitantChanges),
+                checked,
+                prerequisites.concat(consequences.prerequisiteChanges))
         });
     }
 
-    function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Requirement[]> {
+    interface Consequences {
+        concomitantChanges: Requirement[],
+        prerequisiteChanges: Requirement[]
+    }
+
+    function combineConsequences(c1: Consequences, c2: Consequences): Consequences {
+        return {
+            concomitantChanges: c1.concomitantChanges.concat(c2.concomitantChanges),
+            prerequisiteChanges: c1.prerequisiteChanges.concat(c2.prerequisiteChanges),
+        }
+    }
+
+    function concomitantChange(r: Requirement): Consequences {
+        return {
+            concomitantChanges: [r],
+            prerequisiteChanges: [],
+        }
+    }
+
+    const emptyConsequences: Consequences = {
+        concomitantChanges: [],
+        prerequisiteChanges: [],
+    }
+
+    function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Consequences> {
         const passDummyInTests: PassDummyInTestsRequirement = {
             kind: "Pass Dummy In Tests",
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
@@ -305,38 +406,33 @@ export namespace AddParameter {
         logger.info("looking in: " + globFromAccess(requirement.functionWithAdditionalParameter));
 
         const globalConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
-            [passDummyInTests] : [];
+            concomitantChange(passDummyInTests) : emptyConsequences;
 
         // in source, either find a parameter that fits, or receive it.
         return findMatches(project, TypeScriptES6FileParser, globFromAccess(requirement.functionWithAdditionalParameter),
             callWithinFunction + "|" + callWithinMethod)
-            .then(matches => _.flatMap(matches, enclosingFunction =>
-                requirementsFromFunctionCall(requirement, enclosingFunction)))
-            .then((srcConsequences: Requirement[]) => {
-                return srcConsequences.concat(globalConsequences);
+            .then(matches => matches.reduce((cc, functionCallMatch) =>
+                    combineConsequences(cc, consequencesOfFunctionCall(requirement, functionCallMatch)),
+                emptyConsequences))
+            .then((srcConsequences: Consequences) => {
+                return combineConsequences(srcConsequences, globalConsequences);
             });
     }
 
-    function whereMightItBe(fci: FunctionCallIdentifier) {
-
-    }
-
-    function requirementsFromFunctionCall(requirement: AddParameterRequirement,
-                                          enclosingFunction: MatchResult): Requirement[] {
+    function consequencesOfFunctionCall(requirement: AddParameterRequirement,
+                                        enclosingFunction: MatchResult): Consequences {
 
         const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
         if (filePath.startsWith("test")) {
-            return [];
+            return emptyConsequences;
         } // skip tests
 
         const enclosingFunctionName = identifier(enclosingFunction);
 
         console.log("yo yo here is one: " + enclosingFunctionName);
 
-
         const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
         const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
-
 
         if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
             const identifier = suitableParameterMatches[0];
@@ -353,8 +449,9 @@ export namespace AddParameter {
                 },
                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                 argumentValue: identifier.$value,
+                why: requirement,
             };
-            return [instruction];
+            return concomitantChange(instruction);
         } else {
             logger.info("Found a call to %s inside a function called %s, no suitable parameter",
                 requirement.functionWithAdditionalParameter, enclosingFunctionName);
@@ -368,6 +465,7 @@ export namespace AddParameter {
                 parameterType: requirement.parameterType,
                 parameterName: requirement.parameterName,
                 populateInTests: requirement.populateInTests,
+                why: requirement,
             };
             const newParameterForMe: PassArgumentRequirement = {
                 kind: "Pass Argument",
@@ -378,8 +476,9 @@ export namespace AddParameter {
                 },
                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                 argumentValue: requirement.parameterName,
+                why: passNewArgument,
             };
-            return [passNewArgument, newParameterForMe];
+            return { concomitantChanges: [passNewArgument], prerequisiteChanges: [newParameterForMe] };
         }
     }
 
