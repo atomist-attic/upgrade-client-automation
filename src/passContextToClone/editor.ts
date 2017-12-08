@@ -517,9 +517,6 @@ export namespace AddParameter {
         return parent.$children.filter(child => child.$name === name);
     }
 
-    export function guessPathExpression(tn: TreeNode): string {
-        return "//" + printMatchHierarchy(tn).reverse().join("//");
-    }
 
     export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScope?: EnclosingScope): EnclosingScope | undefined {
         if (!tn.$parent) {
@@ -558,21 +555,6 @@ export namespace AddParameter {
         return tn.$children.some(c => c.$name === "ModuleBlock")
     }
 
-    function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] {
-        hierarchy.push(m);
-        if (m.$parent) {
-            return printMatchHierarchy(m.$parent, hierarchy);
-        } else {
-            return _.compact(hierarchy.map(tn => {
-                const identifier = tn.$children.find(c => c.$name === "Identifier");
-                if (identifier) {
-                    const identifierTest = `[/Identifier[@value='${identifier.$value}']]`;
-                    return `${tn.$name}${identifierTest}`;
-                } else {
-                    return undefined;
-                }
-            }));
-        }
-    }
+
 }
 

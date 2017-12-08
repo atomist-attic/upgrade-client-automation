@@ -37,7 +37,6 @@ import sameRequirement = AddParameter.sameRequirement;
 import findConsequences = AddParameter.findConsequences;
 import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
 import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
-import guessPathExpression = AddParameter.guessPathExpression;
 
 
 function addParameterRequirement(fci: AddParameter.FunctionCallIdentifier): AddParameterRequirement {
@@ -555,6 +554,7 @@ function childrenNamed(parent: TreeNode, name: string) {
     return parent.$children.filter(child => child.$name === name);
 }
 
+/* this is for play */
 function pathOfMatch(project: Project, path: string): Promise<string[]> {
     return findMatches(project, TypeScriptES6FileParser, path,
         `/SourceFile//ClassDeclaration//MethodDeclaration`)
@@ -563,6 +563,26 @@ function pathOfMatch(project: Project, path: string): Promise<string[]> {
                 return guessPathExpression(m);
             })
         });
+}
+
+export function guessPathExpression(tn: TreeNode): string {
+    return "//" + printMatchHierarchy(tn).reverse().join("//");
+}
+function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] {
+    hierarchy.push(m);
+    if (m.$parent) {
+        return printMatchHierarchy(m.$parent, hierarchy);
+    } else {
+        return _.compact(hierarchy.map(tn => {
+            const identifier = tn.$children.find(c => c.$name === "Identifier");
+            if (identifier) {
+                const identifierTest = `[/Identifier[@value='${identifier.$value}']]`;
+                return `${tn.$name}${identifierTest}`;
+            } else {
+                return undefined;
+            }
+        }));
+    }
 }
 
 describe("populating dummy in test", () => {
