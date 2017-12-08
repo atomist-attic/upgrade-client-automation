@@ -53,7 +53,6 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenReq
                 dummyValue: "{} as HandlerContext",
                 additionalImport: handlerContextType,
             },
-            scope: { kind: "PublicFunctionScope" },
             why: "I want to use the context in here",
         };
 
@@ -147,6 +146,7 @@ export namespace AddParameter {
         exported: boolean,
         enclosingScope?: EnclosingScope
     }
+
     export function isClassAroundMethod(es: EnclosingScope): es is ClassAroundMethod {
         return es.kind === "class around method";
     }
@@ -161,13 +161,8 @@ export namespace AddParameter {
     export type FunctionCallIdentifier = {
         enclosingScope?: EnclosingScope,
         name: string, filePath: string
+        access: Access
     };
-
-    export type DeclarationLocation = {
-        filePath: string
-        pxe: PathExpression
-    };
-
 
     function sameFunctionCallIdentifier(r1: FunctionCallIdentifier, r2: FunctionCallIdentifier) {
         return r1.name === r2.name &&
@@ -183,30 +178,28 @@ export namespace AddParameter {
                 sameFunctionCallIdentifier(r1.enclosingFunction, (r2 as PassArgumentRequirement).enclosingFunction))
     }
 
-    export type FunctionScope = PublicFunctionScope | PrivateFunctionScope
+    export type Access = PublicFunctionAccess | PrivateFunctionAccess
 
-    export function globFromScope(scope: FunctionScope) {
-        if (isPrivateFunctionScope(scope)) {
-            return scope.glob;
+    export function globFromAccess(fci: FunctionCallIdentifier) {
+        if (isPrivateFunctionAccess(fci.access)) {
+            return fci.filePath;
         } else {
             return "**/*.ts"
         }
     }
 
-    export interface PublicFunctionScope {
-        kind: "PublicFunctionScope",
+    export interface PublicFunctionAccess {
+        kind: "PublicFunctionAccess",
     }
 
     export type PathExpression = string;
 
-    export interface PrivateFunctionScope {
-        kind: "PrivateFunctionScope",
-        glob: string,
-        pxe: PathExpression,
+    export interface PrivateFunctionAccess {
+        kind: "PrivateFunctionAccess",
     }
 
-    export function isPrivateFunctionScope(scope: FunctionScope): scope is PrivateFunctionScope {
-        return scope.kind === "PrivateFunctionScope";
+    export function isPrivateFunctionAccess(scope: Access): scope is PrivateFunctionAccess {
+        return scope.kind === "PrivateFunctionAccess";
     }
 
     export interface AddParameterRequirement {
@@ -218,7 +211,6 @@ export namespace AddParameter {
             dummyValue: string;
             additionalImport?: AddImport.ImportIdentifier;
         }
-        scope: FunctionScope
         why?: any;
     }
 
@@ -227,6 +219,14 @@ export namespace AddParameter {
         functionWithAdditionalParameter: FunctionCallIdentifier;
         dummyValue: string;
         additionalImport?: AddImport.ImportIdentifier;
+        why?: any;
+    }
+
+    export interface PassArgumentRequirement {
+        kind: "Pass Argument"
+        enclosingFunction: FunctionCallIdentifier,
+        functionWithAdditionalParameter: FunctionCallIdentifier;
+        argumentValue: string;
         why?: any;
     }
 
@@ -241,15 +241,6 @@ export namespace AddParameter {
 
     export function isPassArgumentRequirement(r: Requirement): r is PassArgumentRequirement {
         return r.kind === "Pass Argument";
-    }
-
-
-    export interface PassArgumentRequirement {
-        kind: "Pass Argument"
-        enclosingFunction: FunctionCallIdentifier,
-        functionWithAdditionalParameter: FunctionCallIdentifier;
-        argumentValue: string;
-        why?: any;
     }
 
     /*
@@ -296,15 +287,15 @@ export namespace AddParameter {
         const callWithinMethod = `//MethodDeclaration[${innerExpression}]`;
         logger.info("Looking for calls in : " + callWithinMethod);
         logger.info("Looking for calls in : " + callWithinFunction);
-        logger.info("looking in: " + globFromScope(requirement.scope));
+        logger.info("looking in: " + globFromAccess(requirement.functionWithAdditionalParameter));
 
         // in source, either find a parameter that fits, or receive it.
-        return findMatches(project, TypeScriptES6FileParser, globFromScope(requirement.scope),
+        return findMatches(project, TypeScriptES6FileParser, globFromAccess(requirement.functionWithAdditionalParameter),
             callWithinFunction + "|" + callWithinMethod)
             .then(matches => _.flatMap(matches, enclosingFunction =>
                 requirementsFromFunctionCall(requirement, enclosingFunction)))
             .then((srcConsequences: Requirement[]) => {
-                if (isPrivateFunctionScope(requirement.scope)) {
+                if (isPrivateFunctionAccess(requirement.functionWithAdditionalParameter.access)) {
                     return srcConsequences;
                 } else {
                     return srcConsequences.concat([passDummyInTests]);
@@ -312,23 +303,33 @@ export namespace AddParameter {
             });
     }
 
+    function whereMightItBe(fci: FunctionCallIdentifier) {
+
+    }
+
     function requirementsFromFunctionCall(requirement: AddParameterRequirement,
                                           enclosingFunction: MatchResult): Requirement[] {
 
         const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
-        if (filePath.startsWith("test")) { return []; } // skip tests
+        if (filePath.startsWith("test")) {
+            return [];
+        } // skip tests
 
         const enclosingFunctionName = identifier(enclosingFunction);
 
-        console.log("yo yo here is one: " + enclosingFunctionName)
+        console.log("yo yo here is one: " + enclosingFunctionName);
 
-        const exportKeywordExpression = `/SyntaxList/ExportKeyword`;
+        function determineAccess(fnDeclaration: MatchResult): Access {
+            const exportKeywordExpression = `/SyntaxList/ExportKeyword`;
+            const ekm = evaluateExpression(enclosingFunction, exportKeywordExpression);
+            const access: Access = ekm && ekm.length ?
+                { kind: "PublicFunctionAccess" } : { kind: "PrivateFunctionAccess", };
+            return access;
+        }
+
         const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
         const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
 
-        const ekm = evaluateExpression(enclosingFunction, exportKeywordExpression);
-        const scope: FunctionScope = ekm && ekm.length ?
-            { kind: "PublicFunctionScope" } : { kind: "PrivateFunctionScope", glob: filePath, pxe: "/*" };
 
         if (isSuccessResult(suitableParameterMatches) && suitableParameterMatches.length > 0) {
             const identifier = suitableParameterMatches[0];
@@ -338,7 +339,11 @@ export namespace AddParameter {
 
             const instruction: PassArgumentRequirement = {
                 kind: "Pass Argument",
-                enclosingFunction: { enclosingScope: determineScope(enclosingFunction), name: enclosingFunctionName, filePath },
+                enclosingFunction: {
+                    enclosingScope: determineScope(enclosingFunction),
+                    name: enclosingFunctionName, filePath,
+                    access: determineAccess(enclosingFunction),
+                },
                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                 argumentValue: identifier.$value,
             };
@@ -348,15 +353,22 @@ export namespace AddParameter {
                 requirement.functionWithAdditionalParameter, enclosingFunctionName);
             const passNewArgument: AddParameterRequirement = {
                 kind: "Add Parameter",
-                functionWithAdditionalParameter: { enclosingScope: determineScope(enclosingFunction), name: enclosingFunctionName, filePath },
+                functionWithAdditionalParameter: {
+                    enclosingScope: determineScope(enclosingFunction),
+                    name: enclosingFunctionName, filePath,
+                    access: determineAccess(enclosingFunction),
+                },
                 parameterType: requirement.parameterType,
                 parameterName: requirement.parameterName,
                 populateInTests: requirement.populateInTests,
-                scope,
             };
             const newParameterForMe: PassArgumentRequirement = {
                 kind: "Pass Argument",
-                enclosingFunction: { enclosingScope: determineScope(enclosingFunction), name: enclosingFunctionName, filePath },
+                enclosingFunction: {
+                    enclosingScope: determineScope(enclosingFunction),
+                    name: enclosingFunctionName, filePath,
+                    access: determineAccess(enclosingFunction),
+                },
                 functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
                 argumentValue: requirement.parameterName,
             };
@@ -524,7 +536,8 @@ export namespace AddParameter {
         } else {
             switch (tn.$parent.$name) {
                 case "ClassDeclaration":
-                    const thisLevel: ClassAroundMethod = { kind: "class around method",
+                    const thisLevel: ClassAroundMethod = {
+                        kind: "class around method",
                         name: identifier(tn.$parent),
                         exported: true // TODO: really check
                     };
