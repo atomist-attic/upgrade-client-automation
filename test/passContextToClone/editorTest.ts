@@ -346,7 +346,7 @@ describe("detection of consequences", () => {
                 path: fileOfInterest, content: `
         class Classy {
         
-           public otherThinger(context: HandlerContext) {
+           public otherThinger(params: P, ctx: HandlerContext) {
                return this.thinger();
            }
            
@@ -366,14 +366,17 @@ describe("detection of consequences", () => {
             printStructureOfFile(input, fileOfInterest)
                 .then(() => findConsequences(input, [original]))
                 .then(consequences => {
-                    assert(consequences.some(c => c.kind === "Pass Argument" &&
+                    const c = consequences.find(c => c.kind === "Pass Argument" &&
                         c.enclosingFunction.enclosingScope.name === "Classy" &&
                         c.enclosingFunction.name === "otherThinger" &&
-                        c.functionWithAdditionalParameter.name === "thinger"),
+                        c.functionWithAdditionalParameter.name === "thinger") as PassArgumentRequirement;
+                    assert(c,
                         stringify(consequences, null, 2));
+                    assert(c.argumentValue === "ctx")
                 })
                 .then(() => done(), done);
         });
+
     });
 
     describe("properties of enclosing functions", () => {
@@ -462,6 +465,38 @@ describe("detection of consequences", () => {
                 .then(() => done(), done);
         });
 
+        it("detects a protected method, and calls it private for now", done => {
+            const fileOfInterest = "src/Classy.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
+        class Classy {
+        
+           public otherThinger(context: HandlerContext) {
+               return this.thinger();
+           }
+           
+           protected thinger() {
+                return Spacey.giveMeYourContext("and stuff");
+           }
+        }\n`});
+
+            const original: Requirement =
+                addParameterRequirement({
+                    enclosingScope: {kind: "enclosing namespace", name: "Spacey", exported: true},
+                    name: "giveMeYourContext",
+                    filePath: "src/DoesntMatter.ts",
+                });
+
+            printStructureOfFile(input, fileOfInterest)
+                .then(() => findConsequences(input, [original]))
+                .then(consequences => {
+                    const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
+                        c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                    assert(consequenceOfInterest);
+                    assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
+                })
+                .then(() => done(), done);
+        });
 
     });
 

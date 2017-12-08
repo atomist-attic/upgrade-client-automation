@@ -386,7 +386,7 @@ export namespace AddParameter {
     function determineAccess(fnDeclaration: MatchResult): Access {
         const access: Access = hasKeyword(fnDeclaration, "ExportKeyword") ?
             { kind: "PublicFunctionAccess" } :
-            hasKeyword(fnDeclaration, "PrivateKeyword") ?
+            hasKeyword(fnDeclaration, "PrivateKeyword") || hasKeyword(fnDeclaration, "ProtectedKeyword") ?
                 { kind: "PrivateMethodAccess" } :
                 { kind: "PrivateFunctionAccess" };
         return access;
