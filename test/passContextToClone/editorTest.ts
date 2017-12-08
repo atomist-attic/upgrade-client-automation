@@ -41,7 +41,7 @@ import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
 
 function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameterRequirement {
     const fullFci: AddParameter.FunctionCallIdentifier = {
-        access: { kind: "PublicFunctionAccess"},
+        access: { kind: "PublicFunctionAccess" },
         ...fci
     } as AddParameter.FunctionCallIdentifier;
     return {
@@ -89,7 +89,7 @@ describe("editor to pass the context into the cloned method", () => {
                 exported: true,
             },
             name: "cloned", filePath: "src/project/git/GitCommandGitProject.ts",
-            access: { kind: "PublicFunctionAccess"},
+            access: { kind: "PublicFunctionAccess" },
         })(input)
             .then(report => input.findFile("test/something.ts"))
             .then(f => f.getContent())
@@ -116,7 +116,7 @@ describe("editor to pass the context into the cloned method", () => {
             enclosingScope: { kind: "enclosing namespace", name: "InHere", exported: true },
             name: functionWeWant,
             filePath: "src/CodeThatUsesIt.ts",
-            access: { kind: "PublicFunctionAccess"},
+            access: { kind: "PublicFunctionAccess" },
         })(mutableProject)
             .then(report => {
                 const modified = mutableProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
@@ -215,7 +215,7 @@ describe("detection of consequences", () => {
                 ...addParameterRequirement({
                     name: "privateFunciton",
                     filePath: "src/DoesntMatter.ts",
-                    access: { kind: "PrivateFunctionAccess"},
+                    access: { kind: "PrivateFunctionAccess" },
                 }),
             };
 
@@ -263,7 +263,7 @@ describe("detection of consequences", () => {
                 ...addParameterRequirement({
                     name: "privateFunciton",
                     filePath: fileToChange,
-                    access: { kind: "PrivateFunctionAccess"},
+                    access: { kind: "PrivateFunctionAccess" },
                 }),
             };
 
@@ -280,6 +280,7 @@ describe("detection of consequences", () => {
                 })
                 .then(() => done(), done);
         });
+
         it("finds calls inside a class method", done => {
             const fileOfInterest = "src/Classy.ts";
             const input = InMemoryProject.of({
@@ -340,9 +341,9 @@ describe("detection of consequences", () => {
         });
 
         it("finds calls to private methods inside the class", done => {
-                const fileOfInterest = "src/Classy.ts";
-                const input = InMemoryProject.of({
-                    path: fileOfInterest, content: `
+            const fileOfInterest = "src/Classy.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
         class Classy {
         
            public otherThinger(context: HandlerContext) {
@@ -353,77 +354,115 @@ describe("detection of consequences", () => {
                 return Spacey.giveMeYourContext("and stuff");
            }
         }\n`,
-                });
-
-                const original: Requirement = addParameterRequirement({
-                    enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
-                    name: "giveMeYourContext",
-                    filePath: "src/DoesntMatter.ts",
-                    access: { kind: "PublicFunctionAccess"},
-                });
-
-                printStructureOfFile(input, fileOfInterest)
-                    .then(() => findConsequences(input, [original]))
-                    .then(consequences => {
-                        assert(consequences.some(c => c.kind === "Pass Argument" &&
-                            c.enclosingFunction.enclosingScope.name === "Classy" &&
-                            c.enclosingFunction.name === "otherThinger" &&
-                            c.functionWithAdditionalParameter.name === "thinger"),
-                            stringify(consequences, null, 2));
-                    })
-                    .then(() => done(), done);
             });
+
+            const original: Requirement = addParameterRequirement({
+                enclosingScope: { kind: "class around method", name: "Classy", exported: true },
+                name: "thinger",
+                filePath: fileOfInterest,
+                access: { kind: "PrivateMethodAccess" },
+            });
+
+            printStructureOfFile(input, fileOfInterest)
+                .then(() => findConsequences(input, [original]))
+                .then(consequences => {
+                    assert(consequences.some(c => c.kind === "Pass Argument" &&
+                        c.enclosingFunction.enclosingScope.name === "Classy" &&
+                        c.enclosingFunction.name === "otherThinger" &&
+                        c.functionWithAdditionalParameter.name === "thinger"),
+                        stringify(consequences, null, 2));
+                })
+                .then(() => done(), done);
+        });
     });
 
-    it("detects an exported function and calls it public", done => {
-        const fileOfInterest = "src/Classy.ts";
-        const input = InMemoryProject.of({
-            path: fileOfInterest, content: `
+    describe("properties of enclosing functions", () => {
+
+        it("detects an exported function and calls it public", done => {
+            const fileOfInterest = "src/Classy.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
         export function thinger() {
             return giveMeYourContext("and stuff");
         }\n`,
-        });
+            });
 
-        const original: Requirement = addParameterRequirement({
-            name: "giveMeYourContext",
-            filePath: "src/DoesntMatter.ts",
-        });
-
-        printStructureOfFile(input, fileOfInterest)
-            .then(() => findConsequences(input, [original]))
-            .then(consequences => {
-                assert(consequences.some(c => {
-                    return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger"
-                        && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess";
-                }))
-            })
-            .then(() => done(), done);
-    });
-
-    it("detects a not-exported function and calls it private", done => {
-        const fileOfInterest = "src/Classy.ts";
-        const input = InMemoryProject.of({
-            path: fileOfInterest, content: `
-        function thinger() {
-            return giveMeYourContext("and stuff");
-        }\n`,
-        });
-
-        const original: Requirement =
-            addParameterRequirement({
+            const original: Requirement = addParameterRequirement({
                 name: "giveMeYourContext",
                 filePath: "src/DoesntMatter.ts",
             });
 
-        printStructureOfFile(input, fileOfInterest)
-            .then(() => findConsequences(input, [original]))
-            .then(consequences => {
-                const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
-                    c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
-                assert(consequenceOfInterest);
-                assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateFunctionAccess");
-            })
-            .then(() => done(), done);
+            printStructureOfFile(input, fileOfInterest)
+                .then(() => findConsequences(input, [original]))
+                .then(consequences => {
+                    assert(consequences.some(c => {
+                        return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger"
+                            && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess";
+                    }))
+                })
+                .then(() => done(), done);
+        });
+
+        it("detects a not-exported function and calls it private", done => {
+            const fileOfInterest = "src/Classy.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
+        function thinger() {
+            return giveMeYourContext("and stuff");
+        }\n`,
+            });
+
+            const original: Requirement =
+                addParameterRequirement({
+                    name: "giveMeYourContext",
+                    filePath: "src/DoesntMatter.ts",
+                });
+
+            printStructureOfFile(input, fileOfInterest)
+                .then(() => findConsequences(input, [original]))
+                .then(consequences => {
+                    const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
+                        c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                    assert(consequenceOfInterest);
+                    assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateFunctionAccess");
+                })
+                .then(() => done(), done);
+        });
+
+        it("detects a private method", done => {
+            const fileOfInterest = "src/Classy.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
+        class Classy {
+        
+           public otherThinger(context: HandlerContext) {
+               return this.thinger();
+           }
+           
+           private thinger() {
+                return Spacey.giveMeYourContext("and stuff");
+           }
+        }\n`});
+
+            const original: Requirement =
+                addParameterRequirement({
+                    enclosingScope: {kind: "enclosing namespace", name: "Spacey", exported: true},
+                    name: "giveMeYourContext",
+                    filePath: "src/DoesntMatter.ts",
+                });
+
+            printStructureOfFile(input, fileOfInterest)
+                .then(() => findConsequences(input, [original]))
+                .then(consequences => {
+                    const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
+                        c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                    assert(consequenceOfInterest);
+                    assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
+                })
+                .then(() => done(), done);
+        });
+
+
     });
 
 
@@ -536,7 +575,7 @@ describe("pass argument", () => {
                 enclosingScope: { kind: "class around method", name: "DifferenceEngine", exported: true },
                 name: "cloneRepo",
                 "filePath": "src/project/diff/DifferenceEngine.ts",
-                access: { kind: "PublicFunctionAccess"}, // TODO: inaccurate
+                access: { kind: "PublicFunctionAccess" }, // TODO: inaccurate
             },
             "functionWithAdditionalParameter": {
                 enclosingScope: {
@@ -546,7 +585,7 @@ describe("pass argument", () => {
                 },
                 "name": "cloned",
                 "filePath": "src/project/git/GitCommandGitProject.ts",
-                access: { kind: "PublicFunctionAccess"},
+                access: { kind: "PublicFunctionAccess" },
             },
             "argumentValue": "context",
         };
@@ -610,6 +649,7 @@ function pathOfMatch(project: Project, path: string): Promise<string[]> {
 export function guessPathExpression(tn: TreeNode): string {
     return "//" + printMatchHierarchy(tn).reverse().join("//");
 }
+
 function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] {
     hierarchy.push(m);
     if (m.$parent) {
@@ -642,8 +682,10 @@ describe("populating dummy in test", () => {
             });
 
         const instruction: PassDummyInTestsRequirement = {
-            functionWithAdditionalParameter: { name: "myFunction", filePath: "doesntmatter",
-                access: { kind: "PublicFunctionAccess"},},
+            functionWithAdditionalParameter: {
+                name: "myFunction", filePath: "doesntmatter",
+                access: { kind: "PublicFunctionAccess" },
+            },
             kind: "Pass Dummy In Tests",
             dummyValue: "{} as HandlerContext",
             additionalImport: {
@@ -692,9 +734,10 @@ describe("Adding a parameter", () => {
         const addParameterInstruction: AddParameterRequirement = {
             kind: "Add Parameter",
             functionWithAdditionalParameter: {
-                "name": "GitCommandGitProject.cloned",
+                enclosingScope: {kind: "class around method", name: "GitCommandGitProject", exported: true},
+                "name": "cloned",
                 "filePath": "src/project/git/GitCommandGitProject.ts",
-                access: { kind: "PublicFunctionAccess"},
+                access: { kind: "PublicFunctionAccess" },
             },
             "parameterName": "context",
             "parameterType": {
@@ -749,9 +792,9 @@ describe("Adding a parameter", () => {
         implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest).then(() =>
-            findMatches(input, TypeScriptES6FileParser, "src/Classy.ts",
-                "//ClassDeclaration[/Identifier[@value='Classy']]//MethodDeclaration[/Identifier[@value='giveMeYourContext']]"))
-                .then((m) => console.log("found " + m.length ));
+                findMatches(input, TypeScriptES6FileParser, "src/Classy.ts",
+                    "//ClassDeclaration[/Identifier[@value='Classy']]//MethodDeclaration[/Identifier[@value='giveMeYourContext']]"))
+                .then((m) => console.log("found " + m.length));
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
@@ -859,7 +902,7 @@ describe("actually run it", () => {
             enclosingScope: { kind: "class around method", name: "GitCommandGitProject", exported: true },
             name: "cloned",
             filePath: "src/project/git/GitCommandGitProject.ts",
-            access: { kind: "PublicFunctionAccess"},
+            access: { kind: "PublicFunctionAccess" },
         }, commitDangit)(realProject)
             .then(report => {
                 console.log("implemented: " + stringify(report.addParameterReport.implemented, null, 1))

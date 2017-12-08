@@ -178,7 +178,7 @@ export namespace AddParameter {
                 sameFunctionCallIdentifier(r1.enclosingFunction, (r2 as PassArgumentRequirement).enclosingFunction))
     }
 
-    export type Access = PublicFunctionAccess | PrivateFunctionAccess
+    export type Access = PublicFunctionAccess | PrivateFunctionAccess | PrivateMethodAccess
 
     export function globFromAccess(fci: FunctionCallIdentifier) {
         if (isPrivateFunctionAccess(fci.access)) {
@@ -192,6 +192,10 @@ export namespace AddParameter {
         kind: "PublicFunctionAccess",
     }
 
+    export interface PrivateMethodAccess {
+        kind: "PrivateMethodAccess",
+    }
+
     export type PathExpression = string;
 
     export interface PrivateFunctionAccess {
@@ -200,6 +204,14 @@ export namespace AddParameter {
 
     export function isPrivateFunctionAccess(scope: Access): scope is PrivateFunctionAccess {
         return scope.kind === "PrivateFunctionAccess";
+    }
+
+    export function isPublicFunctionAccess(scope: Access): scope is PublicFunctionAccess {
+        return scope.kind === "PublicFunctionAccess";
+    }
+
+    export function isPrivateMethodAccess(scope: Access): scope is PrivateMethodAccess {
+        return scope.kind === "PrivateMethodAccess";
     }
 
     export interface AddParameterRequirement {
@@ -282,6 +294,9 @@ export namespace AddParameter {
             dummyValue: requirement.populateInTests.dummyValue,
             additionalImport: requirement.populateInTests.additionalImport,
         };
+
+        // someday: if the access is private to a class, then the pxe should be narrowed from above
+        // also, imports should narrow from above too
         const innerExpression = functionCallPathExpression(requirement.functionWithAdditionalParameter);
         const callWithinFunction = `//FunctionDeclaration[${innerExpression}]`;
         const callWithinMethod = `//MethodDeclaration[${innerExpression}]`;
@@ -289,17 +304,16 @@ export namespace AddParameter {
         logger.info("Looking for calls in : " + callWithinFunction);
         logger.info("looking in: " + globFromAccess(requirement.functionWithAdditionalParameter));
 
+        const globalConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
+            [passDummyInTests] : [];
+
         // in source, either find a parameter that fits, or receive it.
         return findMatches(project, TypeScriptES6FileParser, globFromAccess(requirement.functionWithAdditionalParameter),
             callWithinFunction + "|" + callWithinMethod)
             .then(matches => _.flatMap(matches, enclosingFunction =>
                 requirementsFromFunctionCall(requirement, enclosingFunction)))
             .then((srcConsequences: Requirement[]) => {
-                if (isPrivateFunctionAccess(requirement.functionWithAdditionalParameter.access)) {
-                    return srcConsequences;
-                } else {
-                    return srcConsequences.concat([passDummyInTests]);
-                }
+                return srcConsequences.concat(globalConsequences);
             });
     }
 
@@ -319,13 +333,6 @@ export namespace AddParameter {
 
         console.log("yo yo here is one: " + enclosingFunctionName);
 
-        function determineAccess(fnDeclaration: MatchResult): Access {
-            const exportKeywordExpression = `/SyntaxList/ExportKeyword`;
-            const ekm = evaluateExpression(enclosingFunction, exportKeywordExpression);
-            const access: Access = ekm && ekm.length ?
-                { kind: "PublicFunctionAccess" } : { kind: "PrivateFunctionAccess", };
-            return access;
-        }
 
         const parameterExpression = `/SyntaxList/Parameter[/TypeReference[@value='${requirement.parameterType.name}']]/Identifier`;
         const suitableParameterMatches = evaluateExpression(enclosingFunction, parameterExpression);
@@ -376,6 +383,21 @@ export namespace AddParameter {
         }
     }
 
+    function determineAccess(fnDeclaration: MatchResult): Access {
+        const access: Access = hasKeyword(fnDeclaration, "ExportKeyword") ?
+            { kind: "PublicFunctionAccess" } :
+            hasKeyword(fnDeclaration, "PrivateKeyword") ?
+                { kind: "PrivateMethodAccess" } :
+                { kind: "PrivateFunctionAccess" };
+        return access;
+    }
+
+    function hasKeyword(fnDeclaration: MatchResult, astElement: string): boolean {
+        const keywordExpression = `/SyntaxList/${astElement}`;
+        const ekm = evaluateExpression(fnDeclaration, keywordExpression);
+        return ekm && ekm.length && true;
+    }
+
     export function implement(project: Project, requirement: Requirement): Promise<Report> {
         logger.info("Implementing: " + stringify(requirement, null, 2));
         if (isAddParameterRequirement(requirement)) {
@@ -398,6 +420,10 @@ export namespace AddParameter {
     }
 
     function functionCallPathExpression(fn: FunctionCallIdentifier) {
+        if (isPrivateMethodAccess(fn.access)) {
+            // this should be the last identifier, that is the fn.name, but I don't know how to express that
+            return `//CallExpression[/PropertyAccessExpression/Identifier[@value='${fn.name}']]`;
+        }
         if (fn.enclosingScope) {
             return `//CallExpression[/PropertyAccessExpression[@value='${propertyAccessExpression(fn.enclosingScope, fn.name)}']]`
         }
