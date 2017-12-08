@@ -230,6 +230,7 @@ describe("detection of consequences", () => {
     });
 
     describe("Add Parameter leads to passing an argument to calls to that function", () => {
+
         it("when a function with a new parameter is not exported, calls to the same-name function in another file are not affected", done => {
 
             const fileToNotChange = "src/notFunciton.ts";

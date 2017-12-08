@@ -181,10 +181,10 @@ export namespace AddParameter {
     export type Access = PublicFunctionAccess | PrivateFunctionAccess | PrivateMethodAccess
 
     export function globFromAccess(fci: FunctionCallIdentifier) {
-        if (isPrivateFunctionAccess(fci.access)) {
-            return fci.filePath;
-        } else {
+        if (isPublicFunctionAccess(fci.access)) {
             return "**/*.ts"
+        } else {
+            return fci.filePath;
         }
     }
 
