@@ -43,7 +43,8 @@ export interface Changeset {
 }
 
 export function describeChangeset(cs: Changeset): string {
-    return `Changeset for: <${AddParameter.describeRequirement(cs.titleRequirement)}>, with ${cs.requirements.length} changes`
+    const listOfReqs = cs.requirements.map(AddParameter.describeRequirement).map(s => "-   " + s).join("\n");
+    return AddParameter.describeRequirement(cs.titleRequirement) + "\n\n" + listOfReqs;
 }
 
 export type PerChangesetFunction = (changeset: Changeset, report: AddParameter.Report) => Promise<void>
@@ -257,6 +258,17 @@ export namespace AddParameter {
         return scope.kind === "PrivateMethodAccess";
     }
 
+    function qualifiedName(fci: FunctionCallIdentifier) {
+        return qualify(fci.enclosingScope, fci.name)
+    }
+
+    function qualify(s: EnclosingScope, soFar: string): string {
+        if (s === undefined) {
+            return soFar;
+        }
+        return qualify(s.enclosingScope, s.name + "." + soFar);
+    }
+
     export interface AddParameterRequirement {
         kind: "Add Parameter";
         functionWithAdditionalParameter: FunctionCallIdentifier;
@@ -270,16 +282,21 @@ export namespace AddParameter {
     }
 
     function describeAddParameter(r: AddParameterRequirement): string {
-        return `Add parameter "${r.parameterName}: ${r.parameterType.name} to ${r.functionWithAdditionalParameter.name} in ${r.functionWithAdditionalParameter.filePath}`
+        return `Add parameter "${r.parameterName}: ${r.parameterType.name}" to ${qualifiedName(r.functionWithAdditionalParameter)}`
     }
 
     export interface PassDummyInTestsRequirement {
         kind: "Pass Dummy In Tests";
         functionWithAdditionalParameter: FunctionCallIdentifier;
         dummyValue: string;
-        additionalImport?: AddImport.ImportIdentifier;
+        additionalImport?: AddImport.ImportIdentifier,
         why?: any;
     }
+
+    function describePassDummyInTests(r: PassDummyInTestsRequirement): string {
+        return `Pass dummy value to ${qualifiedName(r.functionWithAdditionalParameter)} in tests`
+    }
+
 
     export interface PassArgumentRequirement {
         kind: "Pass Argument"
@@ -289,7 +306,11 @@ export namespace AddParameter {
         why?: any;
     }
 
-    export function isAddDummyInTests(r: Requirement): r is PassDummyInTestsRequirement {
+    function describePassArgument(r: PassArgumentRequirement): string {
+        return `Pass argument "${r.argumentValue}" to ${qualifiedName(r.functionWithAdditionalParameter)} in ${qualifiedName(r.enclosingFunction)}`
+    }
+
+    export function isPassDummyInTests(r: Requirement): r is PassDummyInTestsRequirement {
         return r.kind === "Pass Dummy In Tests";
     }
 
@@ -305,8 +326,11 @@ export namespace AddParameter {
     export function describeRequirement(r: Requirement): string {
         if (isAddParameterRequirement(r)) {
             return describeAddParameter(r)
+        } else if (isPassArgumentRequirement(r)) {
+            return describePassArgument(r);
+        } else if (isPassDummyInTests(r)) {
+            return describePassDummyInTests(r);
         } else {
-            ;
             return stringify(r);
         }
     }
@@ -455,7 +479,19 @@ export namespace AddParameter {
         } else {
             logger.info("Found a call to %s inside a function called %s, no suitable parameter",
                 requirement.functionWithAdditionalParameter, enclosingFunctionName);
-            const passNewArgument: AddParameterRequirement = {
+
+            const passArgument: PassArgumentRequirement = {
+                kind: "Pass Argument",
+                enclosingFunction: {
+                    enclosingScope: determineScope(enclosingFunction),
+                    name: enclosingFunctionName, filePath,
+                    access: determineAccess(enclosingFunction),
+                },
+                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+                argumentValue: requirement.parameterName,
+                why: requirement,
+            };
+            const newParameterForMe: AddParameterRequirement = {
                 kind: "Add Parameter",
                 functionWithAdditionalParameter: {
                     enclosingScope: determineScope(enclosingFunction),
@@ -465,20 +501,9 @@ export namespace AddParameter {
                 parameterType: requirement.parameterType,
                 parameterName: requirement.parameterName,
                 populateInTests: requirement.populateInTests,
-                why: requirement,
+                why: passArgument,
             };
-            const newParameterForMe: PassArgumentRequirement = {
-                kind: "Pass Argument",
-                enclosingFunction: {
-                    enclosingScope: determineScope(enclosingFunction),
-                    name: enclosingFunctionName, filePath,
-                    access: determineAccess(enclosingFunction),
-                },
-                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-                argumentValue: requirement.parameterName,
-                why: passNewArgument,
-            };
-            return { concomitantChanges: [passNewArgument], prerequisiteChanges: [newParameterForMe] };
+            return { concomitantChanges: [passArgument], prerequisiteChanges: [newParameterForMe] };
         }
     }
 
@@ -502,7 +527,7 @@ export namespace AddParameter {
         if (isAddParameterRequirement(requirement)) {
             return addParameter(project, requirement);
         }
-        if (isAddDummyInTests(requirement)) {
+        if (isPassDummyInTests(requirement)) {
             return passDummyInTests(project, requirement);
         }
         if (isPassArgumentRequirement(requirement)) {
