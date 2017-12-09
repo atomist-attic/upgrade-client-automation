@@ -4,6 +4,7 @@ import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typ
 import { Project } from "@atomist/automation-client/project/Project";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
+import { logger } from "@atomist/automation-client";
 
 /*
  * To run this while working:
@@ -12,6 +13,8 @@ import * as _ from "lodash";
  * watch "ts-node jess/ModifyAddParameter.ts" jess
  *
  * and then push alt-cmd-Y in IntelliJ on AddParameter.ts to refresh it
+ *
+ * next:
  */
 
 function printStructureOfFile(project: Project, path: string) {
@@ -42,17 +45,18 @@ const inputProject = new NodeFsLocalProject(null,
 const fileOfInterest = "AddParameter.ts";
 const pathExpression = "/SourceFile//TypeAliasDeclaration/";
 
-function drawCommentsAroundMatches() {
+function delineateMatches() {
     return inputProject.findFile(fileOfInterest)
+        .then(f => f.replace(/\/\* \[[0-9\/]+] ->? \*\//g, ""))
         .then(f => f.replace(/\/\* <?->? \*\//g, ""))
         .then(() => inputProject.flush())
         .then(() => findMatches(inputProject, TypeScriptES6FileParser,
             fileOfInterest,
             pathExpression))
         .then(mm => {
-            mm.forEach(m => {
-                console.log("Value before: " + m.$value);
-                m.$value = "/* -> */" + m.$value + "/* <- */"
+            const n = mm.length;
+            mm.forEach((m, i) => {
+                m.$value = `/* [${i}/${n}] -> */` + m.$value + "/* <- */"
             })
         }).then(() => inputProject.flush())
 }
@@ -68,10 +72,12 @@ function reallyEdit() {
         });
 }
 
+
+(logger as any).level = "warn";
 console.log("where");
 console.log("basedir: " + inputProject.baseDir);
 inputProject.findFile(fileOfInterest)
     .then(() => printStructureOfFile(inputProject, fileOfInterest))
-    .then(() => drawCommentsAroundMatches())
+    .then(() => delineateMatches())
     .then(() => reallyEdit())
-    .then(() => {console.log("DONE")});
+    .then(() => {logger.warn("DONE")});
