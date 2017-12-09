@@ -175,17 +175,23 @@ const classTemplate = (name: string, superclass: string, kindString: string,
                        classFields: ClassProperty[],
                        superclassFields: ClassProperty[]): string => {
 
-    // TODO: sort optional to last
-    const constructorParameters = classFields.map(f =>
-        `public ${parameterNameAndType(f)}`).concat(
-        superclassFields.map(parameterNameAndType));
+    const propertyDeclarations = classFields.map(f =>
+        `public ${parameterNameAndType(f)};`);
+    const populatePropertyFromParams = classFields.map(f =>
+    `this.${f.propertyName} = params.${f.propertyName};`);
+
+    const constructorParameterObjectPropertyDeclarations = classFields.concat(superclassFields).map(f =>
+        parameterNameAndType(f));
     const superclassConstructorArguments =
-        superclassFields.map(f => f.propertyName);
+        superclassFields.map(f => `params.${f.propertyName}`);
     return `export class ${name} extends ${superclass} {
-        public kind: ${kindString} = ${kindString};
+        public readonly kind: ${kindString} = ${kindString};
         
-        constructor(${constructorParameters.join(",\n")}) {
+        ${propertyDeclarations.join("\n")}
+        
+        constructor(params: {${constructorParameterObjectPropertyDeclarations.join(",\n")}}) {
             super(${superclassConstructorArguments.join(", ")});
+            ${populatePropertyFromParams.join("\n")}
         } 
     }`
 };
