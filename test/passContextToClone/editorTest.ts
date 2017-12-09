@@ -17,7 +17,7 @@
 import "mocha";
 import * as assert from "power-assert";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
-import { AddParameter, Changeset, describeChangeset, passContextToFunction } from "../../src/passContextToClone/editor";
+import { passContextToFunction } from "../../src/passContextToClone/editor";
 import * as stringify from "json-stringify-safe";
 
 import * as appRoot from "app-root-path";
@@ -31,12 +31,11 @@ import { GitCommandGitProject } from "@atomist/automation-client/project/git/Git
 import { logger } from "@atomist/automation-client";
 import PassDummyInTestsRequirement = AddParameter.PassDummyInTestsRequirement;
 import AddParameterRequirement = AddParameter.AddParameterRequirement;
-import implement = AddParameter.implement;
 import Requirement = AddParameter.Requirement;
-import sameRequirement = AddParameter.sameRequirement;
-import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
 import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
-import changesetForRequirement = AddParameter.changesetForRequirement;
+import { AddParameter } from "../../src/passContextToClone/AddParameter";
+import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
+import { Report } from "../../src/passContextToClone/Report";
 
 
 function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameterRequirement {
@@ -187,7 +186,7 @@ describe("detection of consequences", () => {
                 }),
             };
 
-            changesetForRequirement(input, addParameterPublicRequirement)
+            AddParameter.changesetForRequirement(input, addParameterPublicRequirement)
                 .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c => {
@@ -224,7 +223,7 @@ describe("detection of consequences", () => {
                 }),
             };
 
-            changesetForRequirement(input, addParameterPrivateRequirement)
+            AddParameter.changesetForRequirement(input, addParameterPrivateRequirement)
                 .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c =>
@@ -274,7 +273,7 @@ describe("detection of consequences", () => {
                 }),
             };
 
-            changesetForRequirement(input, original)
+            AddParameter.changesetForRequirement(input, original)
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
@@ -284,7 +283,7 @@ describe("detection of consequences", () => {
                     ), stringify(consequences, null, 2));
                     assert(!consequences.some(c => c.functionWithAdditionalParameter.filePath === fileToNotChange),
                         stringify(consequences, null, 2));
-                    assert(!consequences.some(c => isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange));
+                    assert(!consequences.some(c => AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange));
                 })
                 .then(() => done(), done);
         });
@@ -306,7 +305,7 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => changesetForRequirement(input, original))
+                .then(() => AddParameter.changesetForRequirement(input, original))
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
@@ -339,7 +338,7 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => changesetForRequirement(input, original))
+                .then(() => AddParameter.changesetForRequirement(input, original))
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c => c.kind === "Pass Argument" && c.enclosingFunction.enclosingScope.name === "Classy"),
@@ -374,7 +373,7 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>  changesetForRequirement(input, original)
+                .then(() =>  AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const c = consequences.find(c => c.kind === "Pass Argument" &&
@@ -407,7 +406,7 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   changesetForRequirement(input, original)
+                .then(() =>   AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     assert(consequences.some(c => {
@@ -434,7 +433,7 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   changesetForRequirement(input, original)
+                .then(() =>   AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
@@ -469,7 +468,7 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   changesetForRequirement(input, original)
+                .then(() =>   AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
@@ -504,7 +503,7 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   changesetForRequirement(input, original)
+                .then(() =>   AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
@@ -529,7 +528,7 @@ describe("detection of consequences", () => {
         AddParameter.changesetForRequirement(input, original)
             .then(allRequirements)
             .then(consequences => {
-                assert(consequences.some(o => sameRequirement(o, original)))
+                assert(consequences.some(o => AddParameter.sameRequirement(o, original)))
             }).then(() => done(), done);
     });
 
@@ -537,7 +536,7 @@ describe("detection of consequences", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        changesetForRequirement(thisProject, addParameterRequirement({
+        AddParameter.changesetForRequirement(thisProject, addParameterRequirement({
             name: "exportedDoesNotYetHaveContext",
             filePath: "src/CodeThatUsesIt.ts",
         }))
@@ -552,7 +551,7 @@ describe("detection of consequences", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        changesetForRequirement(thisProject, addParameterRequirement({
+        AddParameter.changesetForRequirement(thisProject, addParameterRequirement({
             enclosingScope: { kind: "enclosing namespace", name: "InHere", exported: true },
             name: "giveMeYourContext",
             filePath: "src/CodeThatUsesIt.ts",
@@ -809,7 +808,7 @@ describe("Adding a parameter", () => {
             },
         };
 
-        implement(input, addParameterInstruction).then(report => {
+        AddParameter.implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             //return printStructureOfFile(input, fileOfInterest);
         }).then(() => input.flush())
@@ -843,7 +842,7 @@ describe("Adding a parameter", () => {
                 name: "giveMeYourContext", filePath: fileOfInterest,
             });
 
-        implement(input, addParameterInstruction).then(report => {
+        AddParameter.implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest).then(() =>
                 findMatches(input, TypeScriptES6FileParser, "src/Classy.ts",
@@ -873,7 +872,7 @@ describe("Adding a parameter", () => {
             filePath: fileOfInterest,
         });
 
-        implement(input, addParameterInstruction).then(report => {
+        AddParameter.implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest);
         }).then(() => input.flush())
@@ -935,7 +934,7 @@ describe("actually run it", () => {
         const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
             "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
 
-        function commitDangit(r1: Changeset, report: AddParameter.Report) {
+        function commitDangit(r1: Changeset, report: Report) {
             if (report.implemented.length === 0) {
                 console.log("Skipping commit for " + stringify(r1));
                 return Promise.resolve();
@@ -960,7 +959,7 @@ describe("actually run it", () => {
         }, commitDangit)(realProject)
             .then(report => {
                 console.log("implemented: " + stringify(report.addParameterReport.implemented, null, 1))
-                console.log("UNIMPLEMENTED: " + stringify(report.addParameterReport.unimplemented, null, 2))
+                console.log("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2))
             })
             .then(() => done(), done)
     }).timeout(1000000);

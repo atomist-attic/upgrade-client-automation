@@ -30,6 +30,7 @@ export class UpgradeTo0_5 implements HandleCommand {
         const editor = passContextToFunction({
             name: "GitCommandGitProject.cloned",
             filePath: "src/project/git/GitCommandGitProject.ts",
+            access: { kind: "PublicFunctionAccess" }
         });
 
         return editOne(ctx, { token: params.githubToken }, editor, saveUpgradeToGitHub

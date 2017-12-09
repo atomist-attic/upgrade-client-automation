@@ -1,7 +1,9 @@
 import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
-import { AddParameter, passContextToFunction } from "./editor";
 import * as stringify from "json-stringify-safe";
+import { Report } from "./Report";
+import { passContextToFunction } from "./editor";
+import { Changeset, describeChangeset } from "./Changeset";
 
 
 // TODO: how would I run this?
@@ -10,11 +12,12 @@ const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("aut
     "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
 
 
-function commitDangit(r1: AddParameter.Requirement, report: AddParameter.Report) {
+function commitDangit(r1: Changeset, report: Report) {
     if (report.implemented.length === 0) {
+        console.log("Skipping commit for " + stringify(r1));
         return Promise.resolve();
     }
-    return realProject.commit(stringify(r1)).then(() => Promise.resolve())
+    return realProject.commit(describeChangeset(r1)).then(() => Promise.resolve())
 }
 
 let areWeDoneYet = false;
@@ -29,6 +32,7 @@ function done(err?: Error) {
 passContextToFunction({
     name: "GitCommandGitProject.cloned",
     filePath: "src/project/git/GitCommandGitProject.ts",
+    access: { kind: "PublicFunctionAccess" }
 }, commitDangit)(realProject)
     .then(report => {
         console.log("implemented: " + stringify(report.addParameterReport.implemented, null, 1))
