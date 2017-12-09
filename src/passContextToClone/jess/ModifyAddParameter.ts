@@ -39,37 +39,64 @@ function printMatch(m: TreeNode): string[] {
     return [me].concat(myBabies);
 }
 
+
+function runInSequenceWithFlushes(project: Project, activities: (() => Promise<void>)[]): Promise<any> {
+    return activities.reduce(
+        (pp: Promise<void>, callMe: () => Promise<void>) =>
+            pp.then(() => callMe())
+                .then(() => project.flush())
+                .then(() => Promise.resolve()),
+        Promise.resolve());
+}
+
 const inputProject = new NodeFsLocalProject(null,
     "/Users/jessitron/code/atomist/upgrade-client-automation/src/passContextToClone/");
 
 const fileOfInterest = "AddParameter.ts";
-const pathExpression = "/SourceFile//TypeAliasDeclaration/";
+const findTypeAlias = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]/UnionType/SyntaxList/TypeReference/Identifier";
 
-function delineateMatches() {
+function delineateMatches(pxe: PathExpression) {
     return inputProject.findFile(fileOfInterest)
         .then(f => f.replace(/\/\* \[[0-9\/]+] ->? \*\//g, ""))
         .then(f => f.replace(/\/\* <?->? \*\//g, ""))
         .then(() => inputProject.flush())
         .then(() => findMatches(inputProject, TypeScriptES6FileParser,
             fileOfInterest,
-            pathExpression))
+            findTypeAlias))
         .then(mm => {
             const n = mm.length;
             mm.forEach((m, i) => {
-                m.$value = `/* [${i}/${n}] -> */` + m.$value + "/* <- */"
-            })
+                const startMarker = n > 1 ? `/* [${i}/${n}] -> */` : `/* -> */`;
+                m.$value = startMarker + m.$value + "/* <- */"
+            });
+            if (n === 1) {
+                logger.warn(printMatch(mm[0]).join("\n"));
+            }
         }).then(() => inputProject.flush())
 }
 
-function reallyEdit() {
+type PathExpression = string;
+
+function matchesInFileOfInterest(pxe: PathExpression) {
     return findMatches(inputProject, TypeScriptES6FileParser,
         fileOfInterest,
-        pathExpression,
-    ).then(
+        pxe,
+    )
+}
+
+function reallyEdit() {
+    matchesInFileOfInterest(findTypeAlias).then(
         mm => {
             console.log("found " + mm.length + " matches");
-            mm.forEach(m => console.log(m.$value))
+            return runInSequenceWithFlushes(inputProject, mm.map(m => () => {
+                console.log(m.$value)
+                return turnInterfaceToType(m.$value)
+            }));
         });
+}
+
+function turnInterfaceToType(identifier: string): Promise<void> {
+    return Promise.resolve()
 }
 
 
@@ -78,6 +105,9 @@ console.log("where");
 console.log("basedir: " + inputProject.baseDir);
 inputProject.findFile(fileOfInterest)
     .then(() => printStructureOfFile(inputProject, fileOfInterest))
-    .then(() => delineateMatches())
+    .then(() => delineateMatches(findTypeAlias))
     .then(() => reallyEdit())
-    .then(() => {logger.warn("DONE")});
+    .then(() => {
+        logger.warn("DONE")
+    })
+    .catch((error) => logger.error(error));
