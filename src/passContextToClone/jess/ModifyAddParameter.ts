@@ -5,6 +5,14 @@ import { Project } from "@atomist/automation-client/project/Project";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 
+/*
+ * To run this while working:
+ *
+ * cd src/passContextToClone/
+ * watch "ts-node jess/ModifyAddParameter.ts" jess
+ *
+ * and then push alt-cmd-Y in IntelliJ on AddParameter.ts to refresh it
+ */
 
 function printStructureOfFile(project: Project, path: string) {
     return findMatches(project, TypeScriptES6FileParser, path,
