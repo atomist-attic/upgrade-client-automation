@@ -19,11 +19,11 @@ import * as _ from "lodash";
 import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
 import { AddImport } from "./manipulateImports";
 import stringify = require("json-stringify-safe");
-import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
+
 import { AddParameter } from "./AddParameter";
 import { combine, emptyReport, Report } from "./Report";
 import { Changeset, describeChangeset } from "./Changeset";
-import AddParameterRequirement = AddParameter.AddParameterRequirement;
+
 
 
 export interface MySpecialEditReport extends EditResult {
@@ -34,14 +34,14 @@ export interface MySpecialEditReport extends EditResult {
 export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>
 const doNothing = () => Promise.resolve();
 
-export function passContextToFunction(params: FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+export function passContextToFunction(params: AddParameter.FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
         const handlerContextType: AddImport.ImportIdentifier = {
             kind: "local",
             name: "HandlerContext",
             localPath: "src/HandlerContext",
         };
-        const originalRequirement: AddParameter.Requirement = new AddParameterRequirement({
+        const originalRequirement: AddParameter.Requirement = new AddParameter.AddParameterRequirement({
             functionWithAdditionalParameter: params,
             parameterType: handlerContextType,
             parameterName: "context",

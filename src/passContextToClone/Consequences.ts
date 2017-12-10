@@ -1,11 +1,11 @@
 
 
 import { AddParameter } from "./AddParameter";
-import Requirement = AddParameter.Requirement;
+
 
 export interface Consequences {
-    concomitantChanges: Requirement[],
-    prerequisiteChanges: Requirement[]
+    concomitantChanges: AddParameter.Requirement[],
+    prerequisiteChanges: AddParameter.Requirement[]
 }
 
 export function combineConsequences(c1: Consequences, c2: Consequences): Consequences {
@@ -15,7 +15,7 @@ export function combineConsequences(c1: Consequences, c2: Consequences): Consequ
     }
 }
 
-export function concomitantChange(r: Requirement): Consequences {
+export function concomitantChange(r: AddParameter.Requirement): Consequences {
     return {
         concomitantChanges: [r],
         prerequisiteChanges: [],

@@ -1,30 +1,30 @@
 import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
 import { AddParameter } from "./AddParameter";
-import AddParameterRequirement = AddParameter.AddParameterRequirement;
+
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
-import Access = AddParameter.Access;
+
 
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import { combineConsequences, concomitantChange, Consequences, emptyConsequences } from "./Consequences";
-import EnclosingScope = AddParameter.EnclosingScope;
-import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
+
+
 import { Project } from "@atomist/automation-client/project/Project";
-import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
+
 import stringify = require("json-stringify-safe");
 import { logger } from "@atomist/automation-client";
 import { emptyReport, Report, reportImplemented, reportUnimplemented } from "./Report";
-import PassDummyInTestsRequirement = AddParameter.PassDummyInTestsRequirement;
+
 import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import { AddImport } from "./manipulateImports";
 import * as _ from "lodash";
-import ClassAroundMethod = AddParameter.ClassAroundMethod;
-import { TreeNode } from "@atomist/tree-path/TreeNode";
-import EnclosingNamespace = AddParameter.EnclosingNamespace;
-import PathExpression = AddParameter.PathExpression;
 
-function consequencesOfFunctionCall(requirement: AddParameterRequirement,
+import { TreeNode } from "@atomist/tree-path/TreeNode";
+
+
+
+function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequirement,
                                     enclosingFunction: MatchResult): Consequences {
 
     const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
@@ -43,7 +43,7 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
         logger.info("Found a call to %s inside a function called %s, with parameter %s",
             requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
 
-        const instruction: PassArgumentRequirement = new PassArgumentRequirement({
+        const instruction: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
             enclosingFunction: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
@@ -58,7 +58,7 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
         logger.info("Found a call to %s inside a function called %s, no suitable parameter",
             requirement.functionWithAdditionalParameter, enclosingFunctionName);
 
-        const passArgument: PassArgumentRequirement = new PassArgumentRequirement({
+        const passArgument: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
             enclosingFunction: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
@@ -68,7 +68,7 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             argumentValue: requirement.parameterName,
             why: requirement,
         });
-        const newParameterForMe: AddParameterRequirement = new AddParameterRequirement({
+        const newParameterForMe: AddParameter.AddParameterRequirement = new AddParameter.AddParameterRequirement({
             functionWithAdditionalParameter: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
@@ -83,8 +83,8 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
     }
 }
 
-function determineAccess(fnDeclaration: MatchResult): Access {
-    const access: Access = hasKeyword(fnDeclaration, "ExportKeyword") ?
+function determineAccess(fnDeclaration: MatchResult): AddParameter.Access {
+    const access: AddParameter.Access = hasKeyword(fnDeclaration, "ExportKeyword") ?
         { kind: "PublicFunctionAccess" } :
         hasKeyword(fnDeclaration, "PrivateKeyword") || hasKeyword(fnDeclaration, "ProtectedKeyword") ?
             { kind: "PrivateMethodAccess" } :
@@ -99,14 +99,14 @@ function hasKeyword(fnDeclaration: MatchResult, astElement: string): boolean {
 }
 
 
-function propertyAccessExpression(s: EnclosingScope, soFar: string): string {
+function propertyAccessExpression(s: AddParameter.EnclosingScope, soFar: string): string {
     if (s === undefined) {
         return soFar;
     }
     return propertyAccessExpression(s.enclosingScope, s.name + "." + soFar);
 }
 
-function functionCallPathExpression(fn: FunctionCallIdentifier) {
+function functionCallPathExpression(fn: AddParameter.FunctionCallIdentifier) {
     if (AddParameter.isPrivateMethodAccess(fn.access)) {
         // this should be the last identifier, that is the fn.name, but I don't know how to express that
         return `//CallExpression[/PropertyAccessExpression/Identifier[@value='${fn.name}']]`;
@@ -118,7 +118,7 @@ function functionCallPathExpression(fn: FunctionCallIdentifier) {
 }
 
 
-export function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Report> {
+export function passArgument(project: Project, requirement: AddParameter.PassArgumentRequirement): Promise<Report> {
 
     const fullPathExpression = functionDeclarationPathExpression(requirement.enclosingFunction) +
         functionCallPathExpression(requirement.functionWithAdditionalParameter);
@@ -149,7 +149,7 @@ function applyPassArgument(parameters: { matches: MatchResult[], requirement: Ad
 /*
 * Implementation: find all the calls in the test sources and pass a dummy argument
 */
-export function passDummyInTests(project: Project, requirement: PassDummyInTestsRequirement): Promise<Report> {
+export function passDummyInTests(project: Project, requirement: AddParameter.PassDummyInTestsRequirement): Promise<Report> {
     return findMatches(project, TypeScriptES6FileParser, "test*/**/*.ts",
         functionCallPathExpression(requirement.functionWithAdditionalParameter))
         .then(matches => {
@@ -183,7 +183,7 @@ export function passDummyInTests(project: Project, requirement: PassDummyInTests
 }
 
 
-export function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
+export function addParameter(project: Project, requirement: AddParameter.AddParameterRequirement): Promise<Report> {
     return AddImport.addImport(project,
         requirement.functionWithAdditionalParameter.filePath,
         requirement.parameterType)
@@ -213,13 +213,13 @@ export function addParameter(project: Project, requirement: AddParameterRequirem
 }
 
 
-export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScope?: EnclosingScope): EnclosingScope | undefined {
+export function determineScope(tn: TreeNode, topLevel?: AddParameter.EnclosingScope, baseScope?: AddParameter.EnclosingScope): AddParameter.EnclosingScope | undefined {
     if (!tn.$parent) {
         return baseScope;
     } else {
         switch (tn.$parent.$name) {
             case "ClassDeclaration":
-                const thisLevel: ClassAroundMethod = {
+                const thisLevel: AddParameter.ClassAroundMethod = {
                     kind: "class around method",
                     name: identifier(tn.$parent),
                     exported: true // TODO: really check
@@ -230,7 +230,7 @@ export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScop
                 return determineScope(tn.$parent, thisLevel, baseScope || thisLevel);
             case "ModuleDeclaration":
                 if (isNamespaceModule(tn.$parent)) {
-                    const thisLevel: EnclosingNamespace = {
+                    const thisLevel: AddParameter.EnclosingNamespace = {
                         kind: "enclosing namespace",
                         name: identifier(tn.$parent),
                         exported: true // TODO: really check
@@ -268,7 +268,7 @@ function isNamespaceModule(tn: TreeNode): boolean {
 }
 
 
-function scopePathExpressionComponents(s: EnclosingScope, soFar: string[] = []): string[] {
+function scopePathExpressionComponents(s: AddParameter.EnclosingScope, soFar: string[] = []): string[] {
     if (s === undefined) {
         return soFar;
     }
@@ -278,7 +278,7 @@ function scopePathExpressionComponents(s: EnclosingScope, soFar: string[] = []):
     return [component].concat(soFar)
 }
 
-function functionDeclarationPathExpression(fn: FunctionCallIdentifier): PathExpression {
+function functionDeclarationPathExpression(fn: AddParameter.FunctionCallIdentifier): AddParameter.PathExpression {
     const identification = `[/Identifier[@value='${fn.name}']]`;
     const methodOrFunction = fn.enclosingScope && AddParameter.isClassAroundMethod(fn.enclosingScope) ? "MethodDeclaration" : "FunctionDeclaration";
 
@@ -287,8 +287,8 @@ function functionDeclarationPathExpression(fn: FunctionCallIdentifier): PathExpr
 }
 
 
-export function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Consequences> {
-    const passDummyInTests: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
+export function findConsequencesOfAddParameter(project: Project, requirement: AddParameter.AddParameterRequirement): Promise<Consequences> {
+    const passDummyInTests: AddParameter.PassDummyInTestsRequirement = new AddParameter.PassDummyInTestsRequirement({
         functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
         dummyValue: requirement.populateInTests.dummyValue,
         additionalImport: requirement.populateInTests.additionalImport,

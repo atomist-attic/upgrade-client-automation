@@ -1,10 +1,10 @@
 
 import { AddParameter } from "./AddParameter";
-import Requirement = AddParameter.Requirement;
+
 
 export interface Changeset {
-    titleRequirement: Requirement,
-    requirements: Requirement[],
+    titleRequirement: AddParameter.Requirement,
+    requirements: AddParameter.Requirement[],
     prerequisites: Changeset[],
 }
 

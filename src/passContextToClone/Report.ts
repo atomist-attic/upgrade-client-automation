@@ -3,17 +3,17 @@
  * Report is the output of attempting to implement requirements.
  */
 import { AddParameter } from "./AddParameter";
-import Requirement = AddParameter.Requirement;
+
 
 export interface Unimplemented {
-    requirement: Requirement,
+    requirement: AddParameter.Requirement,
     message: string,
 }
 
 export interface Report {
     unimplemented: Unimplemented[]
 
-    implemented: Requirement[]
+    implemented: AddParameter.Requirement[]
 }
 
 export const emptyReport: Report = {
@@ -21,14 +21,14 @@ export const emptyReport: Report = {
     implemented: [],
 };
 
-export function reportUnimplemented(requirement: Requirement, message: string): Report {
+export function reportUnimplemented(requirement: AddParameter.Requirement, message: string): Report {
     return {
         unimplemented: [{ requirement, message }],
         implemented: [],
     }
 }
 
-export function reportImplemented(requirement: Requirement): Report {
+export function reportImplemented(requirement: AddParameter.Requirement): Report {
     return {
         unimplemented: [],
         implemented: [requirement],

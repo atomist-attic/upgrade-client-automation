@@ -29,23 +29,23 @@ import * as _ from "lodash";
 import { Project } from "@atomist/automation-client/project/Project";
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
 import { logger } from "@atomist/automation-client";
-import PassDummyInTestsRequirement = AddParameter.PassDummyInTestsRequirement;
-import AddParameterRequirement = AddParameter.AddParameterRequirement;
-import Requirement = AddParameter.Requirement;
-import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
+/* [0/6] -> *//* <- */
+/* [1/6] -> *//* <- */
+/* [2/6] -> *//* <- */
+/* [3/6] -> *//* <- */
 import { AddParameter } from "../../src/passContextToClone/AddParameter";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
 import { Report } from "../../src/passContextToClone/Report";
-import isAddParameterRequirement = AddParameter.isAddParameterRequirement;
-import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
+/* [4/6] -> *//* <- */
+/* [5/6] -> *//* <- */
 
 
-function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameterRequirement {
+function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameter.AddParameterRequirement {
     const fullFci: AddParameter.FunctionCallIdentifier = {
         access: { kind: "PublicFunctionAccess" },
         ...fci
     } as AddParameter.FunctionCallIdentifier;
-    return new AddParameterRequirement({
+    return new AddParameter.AddParameterRequirement({
         "functionWithAdditionalParameter": fullFci,
         "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
         "parameterName": "context",
@@ -146,7 +146,7 @@ describe("editor to pass the context into the cloned method", () => {
 
 describe("detection of consequences", () => {
 
-    function allRequirements(changeset: Changeset): Requirement[] {
+    function allRequirements(changeset: Changeset): AddParameter.Requirement[] {
         return _.flatMap(changeset.prerequisites, cs => allRequirements(cs)).concat(changeset.requirements);
     }
 
@@ -180,7 +180,7 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const addParameterPublicRequirement: Requirement = addParameterRequirement({
+            const addParameterPublicRequirement: AddParameter.Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: "src/DoesntMatter.ts",
                 });
@@ -189,10 +189,10 @@ describe("detection of consequences", () => {
                 .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c => {
-                        return isAddParameterRequirement(c) && c.functionWithAdditionalParameter.filePath === fileToNotChange;
+                        return AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.filePath === fileToNotChange;
                     }), stringify(consequences, null, 2));
                     assert(!consequences.some(c => {
-                        return isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange;
+                        return AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange;
                     }), stringify(consequences, null, 2));
                 })
                 .then(() => done(), done);
@@ -214,7 +214,7 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const addParameterPrivateRequirement: Requirement = addParameterRequirement({
+            const addParameterPrivateRequirement: AddParameter.Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: "src/DoesntMatter.ts",
                     access: { kind: "PrivateFunctionAccess" },
@@ -262,7 +262,7 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const original: Requirement = addParameterRequirement({
+            const original: AddParameter.Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: fileToChange,
                     access: { kind: "PrivateFunctionAccess" },
@@ -272,7 +272,7 @@ describe("detection of consequences", () => {
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
-                        isAddParameterRequirement(c)
+                        AddParameter.isAddParameterRequirement(c)
                         && c.functionWithAdditionalParameter.name === "iShouldChange"
                         && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess",
                     ), stringify(consequences, null, 2));
@@ -294,7 +294,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: Requirement = addParameterRequirement({
+            const original: AddParameter.Requirement = addParameterRequirement({
                 name: "giveMeYourContext",
                 filePath: "src/DoesntMatter.ts",
             });
@@ -304,7 +304,7 @@ describe("detection of consequences", () => {
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
-                        isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"));
+                        AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"));
                 })
                 .then(() => done(), done);
         });
@@ -326,7 +326,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: Requirement = addParameterRequirement({
+            const original: AddParameter.Requirement = addParameterRequirement({
                 enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                 name: "giveMeYourContext",
                 filePath: "src/DoesntMatter.ts",
@@ -336,9 +336,9 @@ describe("detection of consequences", () => {
                 .then(() => AddParameter.changesetForRequirement(input, original))
                 .then(allRequirements)
                 .then(consequences => {
-                    assert(consequences.some(c => isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"),
+                    assert(consequences.some(c => AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"),
                         stringify(consequences, null, 2));
-                    assert(consequences.some(c => isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Clicker"),
+                    assert(consequences.some(c => AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Clicker"),
                         stringify(consequences, null, 2));
                 })
                 .then(() => done(), done);
@@ -360,7 +360,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: Requirement = addParameterRequirement({
+            const original: AddParameter.Requirement = addParameterRequirement({
                 enclosingScope: { kind: "class around method", name: "Classy", exported: true },
                 name: "thinger",
                 filePath: fileOfInterest,
@@ -371,10 +371,10 @@ describe("detection of consequences", () => {
                 .then(() =>  AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const c = consequences.find(c => isPassArgumentRequirement(c) &&
+                    const c = consequences.find(c => AddParameter.isPassArgumentRequirement(c) &&
                         c.enclosingFunction.enclosingScope.name === "Classy" &&
                         c.enclosingFunction.name === "otherThinger" &&
-                        c.functionWithAdditionalParameter.name === "thinger") as PassArgumentRequirement;
+                        c.functionWithAdditionalParameter.name === "thinger") as AddParameter.PassArgumentRequirement;
                     assert(c,
                         stringify(consequences, null, 2));
                     assert(c.argumentValue === "ctx")
@@ -395,7 +395,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: Requirement = addParameterRequirement({
+            const original: AddParameter.Requirement = addParameterRequirement({
                 name: "giveMeYourContext",
                 filePath: "src/DoesntMatter.ts",
             });
@@ -405,7 +405,7 @@ describe("detection of consequences", () => {
                     .then(allRequirements))
                 .then(consequences => {
                     assert(consequences.some(c => {
-                        return isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger"
+                        return AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger"
                             && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess";
                     }))
                 })
@@ -421,7 +421,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: Requirement =
+            const original: AddParameter.Requirement =
                 addParameterRequirement({
                     name: "giveMeYourContext",
                     filePath: "src/DoesntMatter.ts",
@@ -431,8 +431,8 @@ describe("detection of consequences", () => {
                 .then(() =>   AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
-                        isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                    const consequenceOfInterest: AddParameter.AddParameterRequirement = consequences.find(c =>
+                        AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameter.AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateFunctionAccess");
                 })
@@ -455,7 +455,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: Requirement =
+            const original: AddParameter.Requirement =
                 addParameterRequirement({
                     enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                     name: "giveMeYourContext",
@@ -466,8 +466,8 @@ describe("detection of consequences", () => {
                 .then(() =>   AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
-                        isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                    const consequenceOfInterest: AddParameter.AddParameterRequirement = consequences.find(c =>
+                        AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameter.AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
                 })
@@ -490,7 +490,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: Requirement =
+            const original: AddParameter.Requirement =
                 addParameterRequirement({
                     enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                     name: "giveMeYourContext",
@@ -501,8 +501,8 @@ describe("detection of consequences", () => {
                 .then(() =>   AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
-                        isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                    const consequenceOfInterest: AddParameter.AddParameterRequirement = consequences.find(c =>
+                        AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameter.AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
                 })
@@ -515,7 +515,7 @@ describe("detection of consequences", () => {
     it("returns the original requirement", done => {
         const input = copyOfBefore();
 
-        const original: Requirement = addParameterRequirement({
+        const original: AddParameter.Requirement = addParameterRequirement({
             name: "exportedDoesNotYetHaveContext",
             filePath: "src/CodeThatUsesIt.ts",
         },);
@@ -617,7 +617,7 @@ describe("pass argument", () => {
              `,
             });
 
-        const instruction: PassArgumentRequirement = new PassArgumentRequirement({
+        const instruction: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
             "enclosingFunction": {
                 enclosingScope: { kind: "class around method", name: "DifferenceEngine", exported: true },
                 name: "cloneRepo",
@@ -728,7 +728,7 @@ describe("populating dummy in test", () => {
              `,
             });
 
-        const instruction: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
+        const instruction: AddParameter.PassDummyInTestsRequirement = new AddParameter.PassDummyInTestsRequirement({
             functionWithAdditionalParameter: {
                 name: "myFunction", filePath: "doesntmatter",
                 access: { kind: "PublicFunctionAccess" },
@@ -777,7 +777,7 @@ describe("Adding a parameter", () => {
         const input = InMemoryProject.of(
             realProject.findFileSync(fileOfInterest));
 
-        const addParameterInstruction: AddParameterRequirement = new AddParameterRequirement({
+        const addParameterInstruction: AddParameter.AddParameterRequirement = new AddParameter.AddParameterRequirement({
             functionWithAdditionalParameter: {
                 enclosingScope: { kind: "class around method", name: "GitCommandGitProject", exported: true },
                 "name": "cloned",
@@ -824,7 +824,7 @@ describe("Adding a parameter", () => {
         `,
         });
 
-        const addParameterInstruction: AddParameterRequirement = addParameterRequirement(
+        const addParameterInstruction: AddParameter.AddParameterRequirement = addParameterRequirement(
             {
                 enclosingScope: {
                     kind: "class around method",
@@ -858,7 +858,7 @@ describe("Adding a parameter", () => {
 `,
         });
 
-        const addParameterInstruction: AddParameterRequirement = addParameterRequirement({
+        const addParameterInstruction: AddParameter.AddParameterRequirement = addParameterRequirement({
             enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
             name: "giveMeYourContext",
             filePath: fileOfInterest,

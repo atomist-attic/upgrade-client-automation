@@ -327,7 +327,7 @@ function dontImportFunctionsOrClassesThisWay() {
         }).then(() => inputProject.flush());
 
 }
-
+ 
 (logger as any).level = "warn";
 dontImportFunctionsOrClassesThisWay()
     .then(() => {
