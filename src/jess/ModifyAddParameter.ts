@@ -10,7 +10,10 @@ import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode
 import stringify = require("json-stringify-safe");
 import { AddParameter } from "../passContextToClone/AddParameter";
 import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
-import { functionCallIdentifierFromTreeNode } from "../passContextToClone/addParameterImpl";
+import {
+    functionCallIdentifierFromTreeNode, functionCallPathExpression, localFunctionCallPathExpression,
+    pathExpressionIntoScope,
+} from "../passContextToClone/addParameterImpl";
 
 /*
  * To run this while working:
@@ -71,6 +74,14 @@ function childrenNamed(parent: TreeNode, name: string): TreeNode[] {
     return parent.$children.filter(child => child.$name === name);
 }
 
+function firstChildNamed(parent: TreeNode, name: string): TreeNode {
+    const childs = childrenNamed(parent, name);
+    if (childs.length === 0) {
+        throw new Error("No children at all named " + name + " on " + parent.$name);
+    }
+    return childs[0];
+}
+
 function hasChild(parent: TreeNode, name: string): boolean {
     return childrenNamed(parent, name).length === 1;
 }
@@ -84,6 +95,7 @@ const findTypeAlias = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Req
 
 function delineateMatches(filePath: string, pxe: PathExpression) {
     return inputProject.findFile(filePath)
+    // these would delete previous delineations, but using `git checkout` between runs is better
     // .then(f => f.replace(/\/\* \[[0-9\/]+] ->? \*\//g, ""))
     // .then(f => f.replace(/\/\* <?->? \*\//g, ""))
         .then(() => inputProject.flush())
@@ -98,11 +110,15 @@ function delineateMatches(filePath: string, pxe: PathExpression) {
             });
             if (n === 0) {
                 logger.warn("no matches to delineate: " + pxe)
-            }
-            if (n === 1) {
+            } else {
+                logger.warn("First match for: " + pxe);
                 logger.warn(printMatch(mm[0]).join("\n"));
             }
         }).then(() => inputProject.flush())
+        .catch(error => {
+            logger.error("Failed path expression: " + pxe);
+            return Promise.reject(error)
+        })
 }
 
 type PathExpression = string;
@@ -371,17 +387,62 @@ function findTypeGuardFunction(project: Project, glob: string, typeName: string)
         );
 }
 
+// does not assume local scope, but startsWithCheck does
+const findFunctionsThatCall = (whatTheyCall: FunctionCallIdentifier): PathExpression =>
+    `//FunctionDeclaration[${functionCallPathExpression(whatTheyCall)}] | ${pathExpressionIntoScope(whatTheyCall.enclosingScope) +
+    `//FunctionDeclaration[${localFunctionCallPathExpression(whatTheyCall.name)}]`}`;
+
+
+// does the enclosing function start with if(functionItChecks(...))
+function startsWithCheck(functionItChecks: FunctionCallIdentifier, enclosingFunction: TreeNode): boolean {
+    const block = firstChildNamed(enclosingFunction, "Block");
+    const syntax = firstChildNamed(block, "SyntaxList");
+    const ifStatement = syntax.$children[0];
+    if (ifStatement.$name !== "IfStatement") {
+        return false;
+    }
+    // if
+    // (
+    // functionItChecks
+    const thirdChild = ifStatement.$children[2];
+    if (thirdChild.$name !== "CallExpression") {
+        return false;
+    }
+    // This assumes local scope!!
+    if (identifier(thirdChild) !== functionItChecks.name) {
+        return false;
+    }
+    return true;
+}
+
+function functionsThatCheck(project: Project, glob: string,
+                            functionTheyCall: FunctionCallIdentifier): Promise<FunctionCallIdentifier[]> {
+
+    const pxe = findFunctionsThatCall(functionTheyCall);
+ return   findMatches(project, TypeScriptES6FileParser, glob,
+        pxe).then(mm => mm
+        .filter(m => startsWithCheck(functionTheyCall, m))
+        .map(m => functionCallIdentifierFromTreeNode(m)))
+}
+
 function moveFunctionsToMethods() {
     /* let's find functions that call isBlahBlah */
-    return delineateMatches(fileOfInterest, findTypeGuardFunctions("AddParameterRequirement"))
-        .then(() =>
-            delineateMatches(fileOfInterest, findSubclassesPxe("Requirement")))
+    return delineateMatches(fileOfInterest,
+        findFunctionsThatCall({
+            name: "isAddParameterRequirement",
+            access: { kind: "PublicFunctionAccess" },
+        } as FunctionCallIdentifier))
         .then(() => findSubclasses(inputProject, fileOfInterest, "Requirement"))
         .then(subclasses => Promise.all(subclasses.map(subclass =>
             findTypeGuardFunction(inputProject, subclass.filePath, subclass.name))))
         .then(typeGuardFunctions => {
             logger.warn("Type guards: " + stringify(typeGuardFunctions))
             return typeGuardFunctions;
+        }).then(typeGuardFunctions => _.flatMap(typeGuardFunctions, t =>
+            functionsThatCheck(inputProject, fileOfInterest, t)))
+        .then(checkyFunctions => {
+            logger.warn("Functions that check type guards: " + checkyFunctions.map(c => stringify(c)).join("\n"))
+            return checkyFunctions
         });
 }
 
