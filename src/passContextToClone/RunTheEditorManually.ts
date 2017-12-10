@@ -6,7 +6,7 @@ import { passContextToFunction } from "./editor";
 import { Changeset, describeChangeset } from "./Changeset";
 
 
-// TODO: how would I run this?
+// run with ts-node
 
 const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
     "/Users/jessitron/code/atomist/automation-client-ts"), { token: "poo" });
@@ -20,15 +20,6 @@ function commitDangit(r1: Changeset, report: Report) {
     return realProject.commit(describeChangeset(r1)).then(() => Promise.resolve())
 }
 
-let areWeDoneYet = false;
-
-function done(err?: Error) {
-    areWeDoneYet = true;
-    if (err) {
-        throw err;
-    }
-}
-
 passContextToFunction({
     name: "GitCommandGitProject.cloned",
     filePath: "src/project/git/GitCommandGitProject.ts",
@@ -37,16 +28,6 @@ passContextToFunction({
     .then(report => {
         console.log("implemented: " + stringify(report.addParameterReport.implemented, null, 1))
         console.log("UNIMPLEMENTED: " + stringify(report.addParameterReport.unimplemented, null, 2))
-    })
-    .then(() => done(), done);
+    });
 
-function keepGoingIfNotDone() {
-    setTimeout((arg) => {
-        if (!areWeDoneYet) {
-            keepGoingIfNotDone();
-        }
-    }, 1000)
-}
-
-keepGoingIfNotDone();
 

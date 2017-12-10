@@ -5,7 +5,7 @@ import { Project } from "@atomist/automation-client/project/Project";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 import { logger } from "@atomist/automation-client";
-import { AddParameter } from "../AddParameter";
+import { AddParameter } from "../passContextToClone/AddParameter";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import { doWithFileMatches } from "@atomist/automation-client/project/util/parseUtils";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
