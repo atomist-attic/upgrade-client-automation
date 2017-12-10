@@ -40,9 +40,8 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenCha
             name: "HandlerContext",
             localPath: "src/HandlerContext",
         };
-        const originalRequirement: AddParameter.Requirement = {
-            kind: "Add Parameter",
-            functionWithAdditionalParameter: params,
+        const originalRequirement: AddParameter.Requirement = new AddParameterRequirement({
+                        functionWithAdditionalParameter: params,
             parameterType: handlerContextType,
             parameterName: "context",
             populateInTests: {
@@ -50,7 +49,7 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenCha
                 additionalImport: handlerContextType,
             },
             why: "I want to use the context in here",
-        };
+        });
 
         return AddParameter.changesetForRequirement(p, originalRequirement)
             .then(changesetTree => {

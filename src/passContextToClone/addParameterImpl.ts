@@ -43,9 +43,8 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
         logger.info("Found a call to %s inside a function called %s, with parameter %s",
             requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
 
-        const instruction: PassArgumentRequirement = {
-            kind: "Pass Argument",
-            enclosingFunction: {
+        const instruction: PassArgumentRequirement = new PassArgumentRequirement({
+                        enclosingFunction: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
                 access: determineAccess(enclosingFunction),
@@ -53,15 +52,14 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: identifier.$value,
             why: requirement,
-        };
+        });
         return concomitantChange(instruction);
     } else {
         logger.info("Found a call to %s inside a function called %s, no suitable parameter",
             requirement.functionWithAdditionalParameter, enclosingFunctionName);
 
-        const passArgument: PassArgumentRequirement = {
-            kind: "Pass Argument",
-            enclosingFunction: {
+        const passArgument: PassArgumentRequirement = new PassArgumentRequirement({
+                        enclosingFunction: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
                 access: determineAccess(enclosingFunction),
@@ -69,10 +67,9 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: requirement.parameterName,
             why: requirement,
-        };
-        const newParameterForMe: AddParameterRequirement = {
-            kind: "Add Parameter",
-            functionWithAdditionalParameter: {
+        });
+        const newParameterForMe: AddParameterRequirement = new AddParameterRequirement({
+                        functionWithAdditionalParameter: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
                 access: determineAccess(enclosingFunction),
@@ -81,7 +78,7 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             parameterName: requirement.parameterName,
             populateInTests: requirement.populateInTests,
             why: passArgument,
-        };
+        });
         return { concomitantChanges: [passArgument], prerequisiteChanges: [newParameterForMe] };
     }
 }
@@ -293,12 +290,11 @@ function functionDeclarationPathExpression(fn: FunctionCallIdentifier): PathExpr
 
 
 export function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Consequences> {
-    const passDummyInTests: PassDummyInTestsRequirement = {
-        kind: "Pass Dummy In Tests",
-        functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+    const passDummyInTests: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
+                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
         dummyValue: requirement.populateInTests.dummyValue,
         additionalImport: requirement.populateInTests.additionalImport,
-    };
+    });
 
     // someday: if the access is private to a class, then the pxe should be narrowed from above
     // also, imports should narrow from above too

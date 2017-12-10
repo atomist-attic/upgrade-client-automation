@@ -15,7 +15,10 @@ export namespace AddParameter {
     /*
      * Requirements describe what we need to do
      */
-    export type Requirement = AddParameterRequirement | PassArgumentRequirement | PassDummyInTestsRequirement
+    export abstract class Requirement {
+       public kind: string;
+       constructor(public why?: any) {}     
+   }
 
     export type EnclosingScope = ClassAroundMethod | EnclosingNamespace
 
@@ -111,28 +114,53 @@ export namespace AddParameter {
         return qualify(s.enclosingScope, s.name + "." + soFar);
     }
 
-    export interface AddParameterRequirement {
-        kind: "Add Parameter";
-        functionWithAdditionalParameter: FunctionCallIdentifier;
-        parameterType: AddImport.ImportIdentifier;
-        parameterName: string;
-        populateInTests: {
+    export class AddParameterRequirement extends Requirement {
+        public readonly kind: "Add Parameter" = "Add Parameter";
+        
+        public functionWithAdditionalParameter: FunctionCallIdentifier;
+public parameterType: AddImport.ImportIdentifier;
+public parameterName: string;
+public populateInTests: {
             dummyValue: string;
             additionalImport?: AddImport.ImportIdentifier;
-        }
-        why?: any;
+        };
+        
+        constructor(params: {functionWithAdditionalParameter: FunctionCallIdentifier,
+parameterType: AddImport.ImportIdentifier,
+parameterName: string,
+populateInTests: {
+            dummyValue: string;
+            additionalImport?: AddImport.ImportIdentifier;
+        },
+why?: any}) {
+            super(params.why);
+            this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
+this.parameterType = params.parameterType;
+this.parameterName = params.parameterName;
+this.populateInTests = params.populateInTests;
+        } 
     }
 
     function describeAddParameter(r: AddParameterRequirement): string {
         return `Add parameter "${r.parameterName}: ${r.parameterType.name}" to ${qualifiedName(r.functionWithAdditionalParameter)}`
     }
 
-    export interface PassDummyInTestsRequirement {
-        kind: "Pass Dummy In Tests";
-        functionWithAdditionalParameter: FunctionCallIdentifier;
-        dummyValue: string;
-        additionalImport?: AddImport.ImportIdentifier,
-        why?: any;
+    export class PassDummyInTestsRequirement extends Requirement {
+        public readonly kind: "Pass Dummy In Tests" = "Pass Dummy In Tests";
+        
+        public functionWithAdditionalParameter: FunctionCallIdentifier;
+public dummyValue: string;
+public additionalImport?: AddImport.ImportIdentifier;
+        
+        constructor(params: {functionWithAdditionalParameter: FunctionCallIdentifier,
+dummyValue: string,
+additionalImport?: AddImport.ImportIdentifier,
+why?: any}) {
+            super(params.why);
+            this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
+this.dummyValue = params.dummyValue;
+this.additionalImport = params.additionalImport;
+        } 
     }
 
     function describePassDummyInTests(r: PassDummyInTestsRequirement): string {
@@ -140,12 +168,22 @@ export namespace AddParameter {
     }
 
 
-    export interface PassArgumentRequirement {
-        kind: "Pass Argument"
-        enclosingFunction: FunctionCallIdentifier,
-        functionWithAdditionalParameter: FunctionCallIdentifier;
-        argumentValue: string;
-        why?: any;
+    export class PassArgumentRequirement extends Requirement {
+        public readonly kind: "Pass Argument" = "Pass Argument";
+        
+        public enclosingFunction: FunctionCallIdentifier;
+public functionWithAdditionalParameter: FunctionCallIdentifier;
+public argumentValue: string;
+        
+        constructor(params: {enclosingFunction: FunctionCallIdentifier,
+functionWithAdditionalParameter: FunctionCallIdentifier,
+argumentValue: string,
+why?: any}) {
+            super(params.why);
+            this.enclosingFunction = params.enclosingFunction;
+this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
+this.argumentValue = params.argumentValue;
+        } 
     }
 
     function describePassArgument(r: PassArgumentRequirement): string {
