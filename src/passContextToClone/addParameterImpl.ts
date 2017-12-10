@@ -21,8 +21,17 @@ import { AddImport } from "./manipulateImports";
 import * as _ from "lodash";
 
 import { TreeNode } from "@atomist/tree-path/TreeNode";
+import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
 
-
+export function functionCallIdentifierFromTreeNode(functionDeclaration: TreeNode): FunctionCallIdentifier {
+    const filePath = (functionDeclaration as LocatedTreeNode).sourceLocation.path;
+    const enclosingFunctionName = identifier(functionDeclaration);
+    return {
+        enclosingScope: determineScope(functionDeclaration),
+        name: enclosingFunctionName, filePath,
+        access: determineAccess(functionDeclaration),
+    }
+}
 
 function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequirement,
                                     enclosingFunction: MatchResult): Consequences {
@@ -44,11 +53,7 @@ function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequir
             requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
 
         const instruction: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
-            enclosingFunction: {
-                enclosingScope: determineScope(enclosingFunction),
-                name: enclosingFunctionName, filePath,
-                access: determineAccess(enclosingFunction),
-            },
+            enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: identifier.$value,
             why: requirement,
@@ -59,21 +64,13 @@ function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequir
             requirement.functionWithAdditionalParameter, enclosingFunctionName);
 
         const passArgument: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
-            enclosingFunction: {
-                enclosingScope: determineScope(enclosingFunction),
-                name: enclosingFunctionName, filePath,
-                access: determineAccess(enclosingFunction),
-            },
+            enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: requirement.parameterName,
             why: requirement,
         });
         const newParameterForMe: AddParameter.AddParameterRequirement = new AddParameter.AddParameterRequirement({
-            functionWithAdditionalParameter: {
-                enclosingScope: determineScope(enclosingFunction),
-                name: enclosingFunctionName, filePath,
-                access: determineAccess(enclosingFunction),
-            },
+            functionWithAdditionalParameter: functionCallIdentifierFromTreeNode(enclosingFunction),
             parameterType: requirement.parameterType,
             parameterName: requirement.parameterName,
             populateInTests: requirement.populateInTests,
@@ -83,7 +80,7 @@ function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequir
     }
 }
 
-function determineAccess(fnDeclaration: MatchResult): AddParameter.Access {
+function determineAccess(fnDeclaration: TreeNode): AddParameter.Access {
     const access: AddParameter.Access = hasKeyword(fnDeclaration, "ExportKeyword") ?
         { kind: "PublicFunctionAccess" } :
         hasKeyword(fnDeclaration, "PrivateKeyword") || hasKeyword(fnDeclaration, "ProtectedKeyword") ?
@@ -92,7 +89,7 @@ function determineAccess(fnDeclaration: MatchResult): AddParameter.Access {
     return access;
 }
 
-function hasKeyword(fnDeclaration: MatchResult, astElement: string): boolean {
+function hasKeyword(fnDeclaration: TreeNode, astElement: string): boolean {
     const keywordExpression = `/SyntaxList/${astElement}`;
     const ekm = evaluateExpression(fnDeclaration, keywordExpression);
     return ekm && ekm.length && true;
