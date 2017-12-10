@@ -43,15 +43,14 @@ function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifie
         access: { kind: "PublicFunctionAccess" },
         ...fci
     } as AddParameter.FunctionCallIdentifier;
-    return {
-        "kind": "Add Parameter",
+    return new AddParameterRequirement({
         "functionWithAdditionalParameter": fullFci,
         "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
         "parameterName": "context",
         populateInTests: {
             dummyValue: "{}",
         },
-    };
+    });
 }
 
 function getAllMatches(r: RegExp, s: string): string[] {
@@ -179,12 +178,10 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const addParameterPublicRequirement: Requirement = {
-                ...addParameterRequirement({
+            const addParameterPublicRequirement: Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: "src/DoesntMatter.ts",
-                }),
-            };
+                });
 
             AddParameter.changesetForRequirement(input, addParameterPublicRequirement)
                 .then(allRequirements)
