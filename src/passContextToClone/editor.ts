@@ -23,6 +23,7 @@ import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
 import { AddParameter } from "./AddParameter";
 import { combine, emptyReport, Report } from "./Report";
 import { Changeset, describeChangeset } from "./Changeset";
+import AddParameterRequirement = AddParameter.AddParameterRequirement;
 
 
 export interface MySpecialEditReport extends EditResult {
