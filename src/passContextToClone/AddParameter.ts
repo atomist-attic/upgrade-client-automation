@@ -56,6 +56,18 @@ export namespace AddParameter {
             isSameScope(r1.enclosingScope, r2.enclosingScope)
     }
 
+    const oneRequirement: AddParameterRequirement= {
+        kind: "Add Parameter",
+        functionWithAdditionalParameter: { } as any,
+        parameterType: { } as any,
+        parameterName: "context",
+        populateInTests: {
+            dummyValue: "{} as HandlerContext",
+            additionalImport: { } as any,
+        },
+        why: "I want to use the context in here",
+    }
+
     export function sameRequirement(r1: Requirement, r2: Requirement): boolean {
         return r1.kind === r2.kind &&
             sameFunctionCallIdentifier(r1.functionWithAdditionalParameter, r2.functionWithAdditionalParameter) &&
