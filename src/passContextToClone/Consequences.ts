@@ -1,11 +1,11 @@
 
 
-import { AddParameter } from "./AddParameter";
+import { TypescriptEditing } from "./TypescriptEditing";
 
 
 export interface Consequences {
-    concomitantChanges: AddParameter.Requirement[],
-    prerequisiteChanges: AddParameter.Requirement[]
+    concomitantChanges: TypescriptEditing.Requirement[],
+    prerequisiteChanges: TypescriptEditing.Requirement[]
 }
 
 export function combineConsequences(c1: Consequences, c2: Consequences): Consequences {
@@ -15,7 +15,7 @@ export function combineConsequences(c1: Consequences, c2: Consequences): Consequ
     }
 }
 
-export function concomitantChange(r: AddParameter.Requirement): Consequences {
+export function concomitantChange(r: TypescriptEditing.Requirement): Consequences {
     return {
         concomitantChanges: [r],
         prerequisiteChanges: [],

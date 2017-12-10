@@ -1,5 +1,5 @@
 import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
-import { AddParameter } from "./AddParameter";
+import { TypescriptEditing } from "./TypescriptEditing";
 
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 
@@ -21,7 +21,7 @@ import { AddImport } from "./manipulateImports";
 import * as _ from "lodash";
 
 import { TreeNode } from "@atomist/tree-path/TreeNode";
-import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
+import FunctionCallIdentifier = TypescriptEditing.FunctionCallIdentifier;
 
 export function functionCallIdentifierFromTreeNode(functionDeclaration: TreeNode): FunctionCallIdentifier {
     const filePath = (functionDeclaration as LocatedTreeNode).sourceLocation.path;
@@ -33,7 +33,7 @@ export function functionCallIdentifierFromTreeNode(functionDeclaration: TreeNode
     }
 }
 
-function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequirement,
+function consequencesOfFunctionCall(requirement: TypescriptEditing.AddParameterRequirement,
                                     enclosingFunction: MatchResult): Consequences {
 
     const filePath = (enclosingFunction as LocatedTreeNode).sourceLocation.path;
@@ -52,7 +52,7 @@ function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequir
         logger.info("Found a call to %s inside a function called %s, with parameter %s",
             requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
 
-        const instruction: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
+        const instruction: TypescriptEditing.PassArgumentRequirement = new TypescriptEditing.PassArgumentRequirement({
             enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: identifier.$value,
@@ -63,13 +63,13 @@ function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequir
         logger.info("Found a call to %s inside a function called %s, no suitable parameter",
             requirement.functionWithAdditionalParameter, enclosingFunctionName);
 
-        const passArgument: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
+        const passArgument: TypescriptEditing.PassArgumentRequirement = new TypescriptEditing.PassArgumentRequirement({
             enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: requirement.parameterName,
             why: requirement,
         });
-        const newParameterForMe: AddParameter.AddParameterRequirement = new AddParameter.AddParameterRequirement({
+        const newParameterForMe: TypescriptEditing.AddParameterRequirement = new TypescriptEditing.AddParameterRequirement({
             functionWithAdditionalParameter: functionCallIdentifierFromTreeNode(enclosingFunction),
             parameterType: requirement.parameterType,
             parameterName: requirement.parameterName,
@@ -80,8 +80,8 @@ function consequencesOfFunctionCall(requirement: AddParameter.AddParameterRequir
     }
 }
 
-function determineAccess(fnDeclaration: TreeNode): AddParameter.Access {
-    const access: AddParameter.Access = hasKeyword(fnDeclaration, "ExportKeyword") ?
+function determineAccess(fnDeclaration: TreeNode): TypescriptEditing.Access {
+    const access: TypescriptEditing.Access = hasKeyword(fnDeclaration, "ExportKeyword") ?
         { kind: "PublicFunctionAccess" } :
         hasKeyword(fnDeclaration, "PrivateKeyword") || hasKeyword(fnDeclaration, "ProtectedKeyword") ?
             { kind: "PrivateMethodAccess" } :
@@ -96,19 +96,19 @@ function hasKeyword(fnDeclaration: TreeNode, astElement: string): boolean {
 }
 
 
-function propertyAccessExpression(s: AddParameter.EnclosingScope, soFar: string): string {
+function propertyAccessExpression(s: TypescriptEditing.EnclosingScope, soFar: string): string {
     if (s === undefined) {
         return soFar;
     }
     return propertyAccessExpression(s.enclosingScope, s.name + "." + soFar);
 }
 
-export function localFunctionCallPathExpression(name: string): AddParameter.PathExpression {
+export function localFunctionCallPathExpression(name: string): TypescriptEditing.PathExpression {
     return `//CallExpression[/Identifier[@value='${name}']]`
 }
 
-export function functionCallPathExpression(fn: AddParameter.FunctionCallIdentifier) {
-    if (AddParameter.isPrivateMethodAccess(fn.access)) {
+export function functionCallPathExpression(fn: TypescriptEditing.FunctionCallIdentifier) {
+    if (TypescriptEditing.isPrivateMethodAccess(fn.access)) {
         // this should be the last identifier in the PropertyAccessExpression, but I don't know how to express that
         return `//CallExpression[/PropertyAccessExpression/Identifier[@value='${fn.name}']]`;
     }
@@ -119,7 +119,7 @@ export function functionCallPathExpression(fn: AddParameter.FunctionCallIdentifi
 }
 
 
-export function passArgument(project: Project, requirement: AddParameter.PassArgumentRequirement): Promise<Report> {
+export function passArgument(project: Project, requirement: TypescriptEditing.PassArgumentRequirement): Promise<Report> {
 
     const fullPathExpression = functionDeclarationPathExpression(requirement.enclosingFunction) +
         functionCallPathExpression(requirement.functionWithAdditionalParameter);
@@ -131,7 +131,7 @@ export function passArgument(project: Project, requirement: AddParameter.PassArg
         .then(mm => applyPassArgument({ matches: mm, requirement: requirement }));
 }
 
-function applyPassArgument(parameters: { matches: MatchResult[], requirement: AddParameter.PassArgumentRequirement }): Report {
+function applyPassArgument(parameters: { matches: MatchResult[], requirement: TypescriptEditing.PassArgumentRequirement }): Report {
     let { matches, requirement } = parameters;
     if (matches.length === 0) {
         logger.warn("No matches on " + stringify(requirement));
@@ -150,7 +150,7 @@ function applyPassArgument(parameters: { matches: MatchResult[], requirement: Ad
 /*
 * Implementation: find all the calls in the test sources and pass a dummy argument
 */
-export function passDummyInTests(project: Project, requirement: AddParameter.PassDummyInTestsRequirement): Promise<Report> {
+export function passDummyInTests(project: Project, requirement: TypescriptEditing.PassDummyInTestsRequirement): Promise<Report> {
     return findMatches(project, TypeScriptES6FileParser, "test*/**/*.ts",
         functionCallPathExpression(requirement.functionWithAdditionalParameter))
         .then(matches => {
@@ -184,7 +184,7 @@ export function passDummyInTests(project: Project, requirement: AddParameter.Pas
 }
 
 
-export function addParameter(project: Project, requirement: AddParameter.AddParameterRequirement): Promise<Report> {
+export function addParameter(project: Project, requirement: TypescriptEditing.AddParameterRequirement): Promise<Report> {
     return AddImport.addImport(project,
         requirement.functionWithAdditionalParameter.filePath,
         requirement.parameterType)
@@ -214,13 +214,13 @@ export function addParameter(project: Project, requirement: AddParameter.AddPara
 }
 
 
-export function determineScope(tn: TreeNode, topLevel?: AddParameter.EnclosingScope, baseScope?: AddParameter.EnclosingScope): AddParameter.EnclosingScope | undefined {
+export function determineScope(tn: TreeNode, topLevel?: TypescriptEditing.EnclosingScope, baseScope?: TypescriptEditing.EnclosingScope): TypescriptEditing.EnclosingScope | undefined {
     if (!tn.$parent) {
         return baseScope;
     } else {
         switch (tn.$parent.$name) {
             case "ClassDeclaration":
-                const thisLevel: AddParameter.ClassAroundMethod = {
+                const thisLevel: TypescriptEditing.ClassAroundMethod = {
                     kind: "class around method",
                     name: identifier(tn.$parent),
                     exported: true // TODO: really check
@@ -231,7 +231,7 @@ export function determineScope(tn: TreeNode, topLevel?: AddParameter.EnclosingSc
                 return determineScope(tn.$parent, thisLevel, baseScope || thisLevel);
             case "ModuleDeclaration":
                 if (isNamespaceModule(tn.$parent)) {
-                    const thisLevel: AddParameter.EnclosingNamespace = {
+                    const thisLevel: TypescriptEditing.EnclosingNamespace = {
                         kind: "enclosing namespace",
                         name: identifier(tn.$parent),
                         exported: true // TODO: really check
@@ -269,32 +269,32 @@ function isNamespaceModule(tn: TreeNode): boolean {
 }
 
 
-function scopePathExpressionComponents(s: AddParameter.EnclosingScope, soFar: string[] = []): string[] {
+function scopePathExpressionComponents(s: TypescriptEditing.EnclosingScope, soFar: string[] = []): string[] {
     if (s === undefined) {
         return soFar;
     }
-    const component = AddParameter.isClassAroundMethod(s) ?
+    const component = TypescriptEditing.isClassAroundMethod(s) ?
         `ClassDeclaration[/Identifier[@value='${s.name}']]` :
         `ModuleDeclaration[/Identifier[@value='${s.name}']]/ModuleBlock`;
     return [component].concat(soFar)
 }
 
-export function pathExpressionIntoScope(scope: AddParameter.EnclosingScope): AddParameter.PathExpression {
+export function pathExpressionIntoScope(scope: TypescriptEditing.EnclosingScope): TypescriptEditing.PathExpression {
     const components = scopePathExpressionComponents(scope);
     return components.length === 0 ? "" : "//" + components.join("//");
 }
 
 
-function functionDeclarationPathExpression(fn: AddParameter.FunctionCallIdentifier): AddParameter.PathExpression {
+function functionDeclarationPathExpression(fn: TypescriptEditing.FunctionCallIdentifier): TypescriptEditing.PathExpression {
     const identification = `[/Identifier[@value='${fn.name}']]`;
-    const methodOrFunction = fn.enclosingScope && AddParameter.isClassAroundMethod(fn.enclosingScope) ? "MethodDeclaration" : "FunctionDeclaration";
+    const methodOrFunction = fn.enclosingScope && TypescriptEditing.isClassAroundMethod(fn.enclosingScope) ? "MethodDeclaration" : "FunctionDeclaration";
 
     return pathExpressionIntoScope(fn.enclosingScope) + "//" + methodOrFunction + identification;
 }
 
 
-export function findConsequencesOfAddParameter(project: Project, requirement: AddParameter.AddParameterRequirement): Promise<Consequences> {
-    const passDummyInTests: AddParameter.PassDummyInTestsRequirement = new AddParameter.PassDummyInTestsRequirement({
+export function findConsequencesOfAddParameter(project: Project, requirement: TypescriptEditing.AddParameterRequirement): Promise<Consequences> {
+    const passDummyInTests: TypescriptEditing.PassDummyInTestsRequirement = new TypescriptEditing.PassDummyInTestsRequirement({
         functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
         dummyValue: requirement.populateInTests.dummyValue,
         additionalImport: requirement.populateInTests.additionalImport,
@@ -307,13 +307,13 @@ export function findConsequencesOfAddParameter(project: Project, requirement: Ad
     const callWithinMethod = `//MethodDeclaration[${innerExpression}]`;
     logger.info("Looking for calls in : " + callWithinMethod);
     logger.info("Looking for calls in : " + callWithinFunction);
-    logger.info("looking in: " + AddParameter.globFromAccess(requirement.functionWithAdditionalParameter));
+    logger.info("looking in: " + TypescriptEditing.globFromAccess(requirement.functionWithAdditionalParameter));
 
-    const globalConsequences = AddParameter.isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
+    const globalConsequences = TypescriptEditing.isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
         concomitantChange(passDummyInTests) : emptyConsequences;
 
     // in source, either find a parameter that fits, or receive it.
-    return findMatches(project, TypeScriptES6FileParser, AddParameter.globFromAccess(requirement.functionWithAdditionalParameter),
+    return findMatches(project, TypeScriptES6FileParser, TypescriptEditing.globFromAccess(requirement.functionWithAdditionalParameter),
         callWithinFunction + "|" + callWithinMethod)
         .then(matches => matches.reduce((cc, functionCallMatch) =>
                 combineConsequences(cc, consequencesOfFunctionCall(requirement, functionCallMatch)),

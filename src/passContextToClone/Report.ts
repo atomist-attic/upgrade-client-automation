@@ -2,18 +2,18 @@
 /*
  * Report is the output of attempting to implement requirements.
  */
-import { AddParameter } from "./AddParameter";
+import { TypescriptEditing } from "./TypescriptEditing";
 
 
 export interface Unimplemented {
-    requirement: AddParameter.Requirement,
+    requirement: TypescriptEditing.Requirement,
     message: string,
 }
 
 export interface Report {
     unimplemented: Unimplemented[]
 
-    implemented: AddParameter.Requirement[]
+    implemented: TypescriptEditing.Requirement[]
 }
 
 export const emptyReport: Report = {
@@ -21,14 +21,14 @@ export const emptyReport: Report = {
     implemented: [],
 };
 
-export function reportUnimplemented(requirement: AddParameter.Requirement, message: string): Report {
+export function reportUnimplemented(requirement: TypescriptEditing.Requirement, message: string): Report {
     return {
         unimplemented: [{ requirement, message }],
         implemented: [],
     }
 }
 
-export function reportImplemented(requirement: AddParameter.Requirement): Report {
+export function reportImplemented(requirement: TypescriptEditing.Requirement): Report {
     return {
         unimplemented: [],
         implemented: [requirement],

@@ -8,7 +8,7 @@ import { Consequences, emptyConsequences } from "./Consequences";
 import { Changeset } from "./Changeset";
 
 
-export namespace AddParameter {
+export namespace TypescriptEditing {
 
     /*
      * Requirements describe what we need to do
@@ -256,7 +256,7 @@ export namespace AddParameter {
         return findConsequences(project, [requirement], [], [])
             .then(theseConsequences => Promise.all(
                 theseConsequences.prerequisiteChanges
-                    .map(r => AddParameter.changesetForRequirement(project, r)))
+                    .map(r => TypescriptEditing.changesetForRequirement(project, r)))
                 .then(prerequisiteChangesets =>
                     ({
                         titleRequirement: requirement,

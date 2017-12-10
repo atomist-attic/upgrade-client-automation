@@ -20,7 +20,7 @@ import { EditResult, successfulEdit } from "@atomist/automation-client/operation
 import { AddImport } from "./manipulateImports";
 import stringify = require("json-stringify-safe");
 
-import { AddParameter } from "./AddParameter";
+import { TypescriptEditing } from "./TypescriptEditing";
 import { combine, emptyReport, Report } from "./Report";
 import { Changeset, describeChangeset } from "./Changeset";
 
@@ -34,14 +34,14 @@ export interface MySpecialEditReport extends EditResult {
 export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>
 const doNothing = () => Promise.resolve();
 
-export function passContextToFunction(params: AddParameter.FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+export function passContextToFunction(params: TypescriptEditing.FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
         const handlerContextType: AddImport.ImportIdentifier = {
             kind: "local",
             name: "HandlerContext",
             localPath: "src/HandlerContext",
         };
-        const originalRequirement: AddParameter.Requirement = new AddParameter.AddParameterRequirement({
+        const originalRequirement: TypescriptEditing.Requirement = new TypescriptEditing.AddParameterRequirement({
             functionWithAdditionalParameter: params,
             parameterType: handlerContextType,
             parameterName: "context",
@@ -52,7 +52,7 @@ export function passContextToFunction(params: AddParameter.FunctionCallIdentifie
             why: "I want to use the context in here",
         });
 
-        return AddParameter.changesetForRequirement(p, originalRequirement)
+        return TypescriptEditing.changesetForRequirement(p, originalRequirement)
             .then(changesetTree => {
                 // man, I wish I could find my TreePrinter
                 logger.info(describeChangeset(changesetTree));
@@ -90,10 +90,10 @@ function linearizeChangesets(top: Changeset): Changeset[] {
 }
 
 
-function implementInSequenceWithFlushes(project: Project, activities: AddParameter.Requirement[]) {
+function implementInSequenceWithFlushes(project: Project, activities: TypescriptEditing.Requirement[]) {
     return activities.reduce(
-        (pp: Promise<Report>, r1: AddParameter.Requirement) => pp
-            .then(allTheReportsFromBefore => AddParameter.implement(project, r1)
+        (pp: Promise<Report>, r1: TypescriptEditing.Requirement) => pp
+            .then(allTheReportsFromBefore => TypescriptEditing.implement(project, r1)
                 .then((report1) => project.flush()
                     .then(() => combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(emptyReport));

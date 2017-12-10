@@ -8,8 +8,8 @@ import { logger } from "@atomist/automation-client";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import stringify = require("json-stringify-safe");
-import { AddParameter } from "../passContextToClone/AddParameter";
-import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
+import { TypescriptEditing } from "../passContextToClone/TypescriptEditing";
+import FunctionCallIdentifier = TypescriptEditing.FunctionCallIdentifier;
 import {
     functionCallIdentifierFromTreeNode, functionCallPathExpression, localFunctionCallPathExpression,
     pathExpressionIntoScope,
@@ -21,7 +21,7 @@ import {
  * cd src/
  * watch "git checkout passContextToClone; ts-node jess/ModifyAddParameter.ts" jess
  *
- * and then push alt-cmd-Y in IntelliJ on AddParameter.ts to refresh it
+ * and then push alt-cmd-Y in IntelliJ on TypescriptEditing.ts to refresh it
  *
  * next:
  */
@@ -89,7 +89,7 @@ function hasChild(parent: TreeNode, name: string): boolean {
 const inputProject = new NodeFsLocalProject(null,
     "/Users/jessitron/code/atomist/upgrade-client-automation/");
 
-const fileOfInterest = "src/passContextToClone/AddParameter.ts";
+const fileOfInterest = "src/passContextToClone/TypescriptEditing.ts";
 const findUnionTypeComponents = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]/UnionType/SyntaxList/TypeReference/Identifier";
 const findTypeAlias = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]";
 
@@ -298,7 +298,7 @@ function changeUnionToSuperclass() {
 
 // function moveFunctionsAround() {
 //     const moveInterfaceRequirement = {
-//         fromFilePath: "src/passContextToClone/AddParameter.ts",
+//         fromFilePath: "src/passContextToClone/TypescriptEditing.ts",
 //         interfaceSpec: {
 //             name: "AddParameterRequirement"
 //         }
@@ -564,6 +564,6 @@ function removeNamespace(namespaceName: string, filePath: string) {
 }
 
 (logger as any).level = "warn";
-removeNamespace("AddParameter", fileOfInterest).then(() => {
+removeNamespace("TypescriptEditing", fileOfInterest).then(() => {
     logger.warn("DONE")
 }, (error) => logger.error(error.toString()));

@@ -29,17 +29,17 @@ import * as _ from "lodash";
 import { Project } from "@atomist/automation-client/project/Project";
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
 import { logger } from "@atomist/automation-client";
-import { AddParameter } from "../../src/passContextToClone/AddParameter";
+import { TypescriptEditing } from "../../src/passContextToClone/TypescriptEditing";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
 import { Report } from "../../src/passContextToClone/Report";
 
 
-function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameter.AddParameterRequirement {
-    const fullFci: AddParameter.FunctionCallIdentifier = {
+function addParameterRequirement(fci: Partial<TypescriptEditing.FunctionCallIdentifier>): TypescriptEditing.AddParameterRequirement {
+    const fullFci: TypescriptEditing.FunctionCallIdentifier = {
         access: { kind: "PublicFunctionAccess" },
         ...fci
-    } as AddParameter.FunctionCallIdentifier;
-    return new AddParameter.AddParameterRequirement({
+    } as TypescriptEditing.FunctionCallIdentifier;
+    return new TypescriptEditing.AddParameterRequirement({
         "functionWithAdditionalParameter": fullFci,
         "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
         "parameterName": "context",
@@ -140,7 +140,7 @@ describe("editor to pass the context into the cloned method", () => {
 
 describe("detection of consequences", () => {
 
-    function allRequirements(changeset: Changeset): AddParameter.Requirement[] {
+    function allRequirements(changeset: Changeset): TypescriptEditing.Requirement[] {
         return _.flatMap(changeset.prerequisites, cs => allRequirements(cs)).concat(changeset.requirements);
     }
 
@@ -174,19 +174,19 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const addParameterPublicRequirement: AddParameter.Requirement = addParameterRequirement({
+            const addParameterPublicRequirement: TypescriptEditing.Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: "src/DoesntMatter.ts",
                 });
 
-            AddParameter.changesetForRequirement(input, addParameterPublicRequirement)
+            TypescriptEditing.changesetForRequirement(input, addParameterPublicRequirement)
                 .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c => {
-                        return AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.filePath === fileToNotChange;
+                        return TypescriptEditing.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.filePath === fileToNotChange;
                     }), stringify(consequences, null, 2));
                     assert(!consequences.some(c => {
-                        return AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange;
+                        return TypescriptEditing.isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange;
                     }), stringify(consequences, null, 2));
                 })
                 .then(() => done(), done);
@@ -208,13 +208,13 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const addParameterPrivateRequirement: AddParameter.Requirement = addParameterRequirement({
+            const addParameterPrivateRequirement: TypescriptEditing.Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: "src/DoesntMatter.ts",
                     access: { kind: "PrivateFunctionAccess" },
                 });
 
-            AddParameter.changesetForRequirement(input, addParameterPrivateRequirement)
+            TypescriptEditing.changesetForRequirement(input, addParameterPrivateRequirement)
                 .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c =>
@@ -256,23 +256,23 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const original: AddParameter.Requirement = addParameterRequirement({
+            const original: TypescriptEditing.Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: fileToChange,
                     access: { kind: "PrivateFunctionAccess" },
                 });
 
-            AddParameter.changesetForRequirement(input, original)
+            TypescriptEditing.changesetForRequirement(input, original)
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
-                        AddParameter.isAddParameterRequirement(c)
+                        TypescriptEditing.isAddParameterRequirement(c)
                         && c.functionWithAdditionalParameter.name === "iShouldChange"
                         && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess",
                     ), stringify(consequences, null, 2));
                     assert(!consequences.some(c => (c as any).functionWithAdditionalParameter.filePath === fileToNotChange),
                         stringify(consequences, null, 2));
-                    assert(!consequences.some(c => AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange));
+                    assert(!consequences.some(c => TypescriptEditing.isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange));
                 })
                 .then(() => done(), done);
         });
@@ -288,17 +288,17 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: AddParameter.Requirement = addParameterRequirement({
+            const original: TypescriptEditing.Requirement = addParameterRequirement({
                 name: "giveMeYourContext",
                 filePath: "src/DoesntMatter.ts",
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => AddParameter.changesetForRequirement(input, original))
+                .then(() => TypescriptEditing.changesetForRequirement(input, original))
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
-                        AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"));
+                        TypescriptEditing.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"));
                 })
                 .then(() => done(), done);
         });
@@ -320,19 +320,19 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: AddParameter.Requirement = addParameterRequirement({
+            const original: TypescriptEditing.Requirement = addParameterRequirement({
                 enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                 name: "giveMeYourContext",
                 filePath: "src/DoesntMatter.ts",
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() => AddParameter.changesetForRequirement(input, original))
+                .then(() => TypescriptEditing.changesetForRequirement(input, original))
                 .then(allRequirements)
                 .then(consequences => {
-                    assert(consequences.some(c => AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"),
+                    assert(consequences.some(c => TypescriptEditing.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"),
                         stringify(consequences, null, 2));
-                    assert(consequences.some(c => AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Clicker"),
+                    assert(consequences.some(c => TypescriptEditing.isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Clicker"),
                         stringify(consequences, null, 2));
                 })
                 .then(() => done(), done);
@@ -354,7 +354,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: AddParameter.Requirement = addParameterRequirement({
+            const original: TypescriptEditing.Requirement = addParameterRequirement({
                 enclosingScope: { kind: "class around method", name: "Classy", exported: true },
                 name: "thinger",
                 filePath: fileOfInterest,
@@ -362,13 +362,13 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>  AddParameter.changesetForRequirement(input, original)
+                .then(() =>  TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const c = consequences.find(c => AddParameter.isPassArgumentRequirement(c) &&
+                    const c = consequences.find(c => TypescriptEditing.isPassArgumentRequirement(c) &&
                         c.enclosingFunction.enclosingScope.name === "Classy" &&
                         c.enclosingFunction.name === "otherThinger" &&
-                        c.functionWithAdditionalParameter.name === "thinger") as AddParameter.PassArgumentRequirement;
+                        c.functionWithAdditionalParameter.name === "thinger") as TypescriptEditing.PassArgumentRequirement;
                     assert(c,
                         stringify(consequences, null, 2));
                     assert(c.argumentValue === "ctx")
@@ -389,17 +389,17 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: AddParameter.Requirement = addParameterRequirement({
+            const original: TypescriptEditing.Requirement = addParameterRequirement({
                 name: "giveMeYourContext",
                 filePath: "src/DoesntMatter.ts",
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   AddParameter.changesetForRequirement(input, original)
+                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     assert(consequences.some(c => {
-                        return AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger"
+                        return TypescriptEditing.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger"
                             && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess";
                     }))
                 })
@@ -415,18 +415,18 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: AddParameter.Requirement =
+            const original: TypescriptEditing.Requirement =
                 addParameterRequirement({
                     name: "giveMeYourContext",
                     filePath: "src/DoesntMatter.ts",
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   AddParameter.changesetForRequirement(input, original)
+                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const consequenceOfInterest: AddParameter.AddParameterRequirement = consequences.find(c =>
-                        AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameter.AddParameterRequirement;
+                    const consequenceOfInterest: TypescriptEditing.AddParameterRequirement = consequences.find(c =>
+                        TypescriptEditing.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as TypescriptEditing.AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateFunctionAccess");
                 })
@@ -449,7 +449,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: AddParameter.Requirement =
+            const original: TypescriptEditing.Requirement =
                 addParameterRequirement({
                     enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                     name: "giveMeYourContext",
@@ -457,11 +457,11 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   AddParameter.changesetForRequirement(input, original)
+                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const consequenceOfInterest: AddParameter.AddParameterRequirement = consequences.find(c =>
-                        AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameter.AddParameterRequirement;
+                    const consequenceOfInterest: TypescriptEditing.AddParameterRequirement = consequences.find(c =>
+                        TypescriptEditing.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as TypescriptEditing.AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
                 })
@@ -484,7 +484,7 @@ describe("detection of consequences", () => {
         }\n`,
             });
 
-            const original: AddParameter.Requirement =
+            const original: TypescriptEditing.Requirement =
                 addParameterRequirement({
                     enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
                     name: "giveMeYourContext",
@@ -492,11 +492,11 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   AddParameter.changesetForRequirement(input, original)
+                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const consequenceOfInterest: AddParameter.AddParameterRequirement = consequences.find(c =>
-                        AddParameter.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameter.AddParameterRequirement;
+                    const consequenceOfInterest: TypescriptEditing.AddParameterRequirement = consequences.find(c =>
+                        TypescriptEditing.isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as TypescriptEditing.AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
                 })
@@ -509,15 +509,15 @@ describe("detection of consequences", () => {
     it("returns the original requirement", done => {
         const input = copyOfBefore();
 
-        const original: AddParameter.Requirement = addParameterRequirement({
+        const original: TypescriptEditing.Requirement = addParameterRequirement({
             name: "exportedDoesNotYetHaveContext",
             filePath: "src/CodeThatUsesIt.ts",
         },);
 
-        AddParameter.changesetForRequirement(input, original)
+        TypescriptEditing.changesetForRequirement(input, original)
             .then(allRequirements)
             .then(consequences => {
-                assert(consequences.some(o => AddParameter.sameRequirement(o, original)))
+                assert(consequences.some(o => TypescriptEditing.sameRequirement(o, original)))
             }).then(() => done(), done);
     });
 
@@ -525,7 +525,7 @@ describe("detection of consequences", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        AddParameter.changesetForRequirement(thisProject, addParameterRequirement({
+        TypescriptEditing.changesetForRequirement(thisProject, addParameterRequirement({
             name: "exportedDoesNotYetHaveContext",
             filePath: "src/CodeThatUsesIt.ts",
         }))
@@ -540,7 +540,7 @@ describe("detection of consequences", () => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/passContextToClone/resources/before");
 
-        AddParameter.changesetForRequirement(thisProject, addParameterRequirement({
+        TypescriptEditing.changesetForRequirement(thisProject, addParameterRequirement({
             enclosingScope: { kind: "enclosing namespace", name: "InHere", exported: true },
             name: "giveMeYourContext",
             filePath: "src/CodeThatUsesIt.ts",
@@ -549,13 +549,13 @@ describe("detection of consequences", () => {
             .then(consequences => {
 
                 const addParameterAtHigherLevel = consequences.find(c =>
-                    AddParameter.isAddParameterRequirement(c) &&
+                    TypescriptEditing.isAddParameterRequirement(c) &&
                     c.functionWithAdditionalParameter.name === "usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext");
 
-                assert(addParameterAtHigherLevel, stringify(consequences.filter(AddParameter.isAddParameterRequirement), null, 2));
+                assert(addParameterAtHigherLevel, stringify(consequences.filter(TypescriptEditing.isAddParameterRequirement), null, 2));
 
                 const addParameterAtEvenHigherLevel = consequences.find(c =>
-                    AddParameter.isAddParameterRequirement(c) &&
+                    TypescriptEditing.isAddParameterRequirement(c) &&
                     c.functionWithAdditionalParameter.name === "andEvenMoreStuff");
 
                 assert(addParameterAtEvenHigherLevel);
@@ -611,7 +611,7 @@ describe("pass argument", () => {
              `,
             });
 
-        const instruction: AddParameter.PassArgumentRequirement = new AddParameter.PassArgumentRequirement({
+        const instruction: TypescriptEditing.PassArgumentRequirement = new TypescriptEditing.PassArgumentRequirement({
             "enclosingFunction": {
                 enclosingScope: { kind: "class around method", name: "DifferenceEngine", exported: true },
                 name: "cloneRepo",
@@ -632,7 +632,7 @@ describe("pass argument", () => {
         });
 
         printStructureOfFile(input, "src/project/diff/DifferenceEngine.ts").then(() =>
-            AddParameter.implement(input, instruction).then(() => input.flush())
+            TypescriptEditing.implement(input, instruction).then(() => input.flush())
                 .then(() => {
                     const after = input.findFileSync("src/project/diff/DifferenceEngine.ts").getContentSync();
                     assert(after.includes("cloned(context, "), after)
@@ -722,7 +722,7 @@ describe("populating dummy in test", () => {
              `,
             });
 
-        const instruction: AddParameter.PassDummyInTestsRequirement = new AddParameter.PassDummyInTestsRequirement({
+        const instruction: TypescriptEditing.PassDummyInTestsRequirement = new TypescriptEditing.PassDummyInTestsRequirement({
             functionWithAdditionalParameter: {
                 name: "myFunction", filePath: "doesntmatter",
                 access: { kind: "PublicFunctionAccess" },
@@ -734,7 +734,7 @@ describe("populating dummy in test", () => {
             },
         })
 
-        AddParameter.implement(input, instruction).then(() => input.flush())
+        TypescriptEditing.implement(input, instruction).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
                 assert(after.includes("import { HandlerContext } "), after)
@@ -771,7 +771,7 @@ describe("Adding a parameter", () => {
         const input = InMemoryProject.of(
             realProject.findFileSync(fileOfInterest));
 
-        const addParameterInstruction: AddParameter.AddParameterRequirement = new AddParameter.AddParameterRequirement({
+        const addParameterInstruction: TypescriptEditing.AddParameterRequirement = new TypescriptEditing.AddParameterRequirement({
             functionWithAdditionalParameter: {
                 enclosingScope: { kind: "class around method", name: "GitCommandGitProject", exported: true },
                 "name": "cloned",
@@ -794,7 +794,7 @@ describe("Adding a parameter", () => {
             },
         });
 
-        AddParameter.implement(input, addParameterInstruction).then(report => {
+        TypescriptEditing.implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             //return printStructureOfFile(input, fileOfInterest);
         }).then(() => input.flush())
@@ -818,7 +818,7 @@ describe("Adding a parameter", () => {
         `,
         });
 
-        const addParameterInstruction: AddParameter.AddParameterRequirement = addParameterRequirement(
+        const addParameterInstruction: TypescriptEditing.AddParameterRequirement = addParameterRequirement(
             {
                 enclosingScope: {
                     kind: "class around method",
@@ -828,7 +828,7 @@ describe("Adding a parameter", () => {
                 name: "giveMeYourContext", filePath: fileOfInterest,
             });
 
-        AddParameter.implement(input, addParameterInstruction).then(report => {
+        TypescriptEditing.implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest).then(() =>
                 findMatches(input, TypeScriptES6FileParser, "src/Classy.ts",
@@ -852,13 +852,13 @@ describe("Adding a parameter", () => {
 `,
         });
 
-        const addParameterInstruction: AddParameter.AddParameterRequirement = addParameterRequirement({
+        const addParameterInstruction: TypescriptEditing.AddParameterRequirement = addParameterRequirement({
             enclosingScope: { kind: "enclosing namespace", name: "Spacey", exported: true },
             name: "giveMeYourContext",
             filePath: fileOfInterest,
         });
 
-        AddParameter.implement(input, addParameterInstruction).then(report => {
+        TypescriptEditing.implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest);
         }).then(() => input.flush())
@@ -871,7 +871,7 @@ describe("Adding a parameter", () => {
 
     it("Adds the right type", done => {
         const input = copyOfBefore();
-        AddParameter.implement(input, addParameterRequirement({
+        TypescriptEditing.implement(input, addParameterRequirement({
             name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
         },)).then(changed => input.flush().then(() => changed))
             .then(report => {
@@ -883,7 +883,7 @@ describe("Adding a parameter", () => {
 
     it("Adds an import file too", done => {
         const input = copyOfBefore();
-        AddParameter.implement(input, addParameterRequirement({
+        TypescriptEditing.implement(input, addParameterRequirement({
                 name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
             })).then(changed => input.flush().then(() => changed))
             .then(report => {
