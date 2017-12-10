@@ -359,6 +359,9 @@ function findSubclasses(project: Project, glob: string, superclassName: string):
         }))
 }
 
+/*
+* assumes there is exactly one typeguard function for this class
+ */
 function findTypeGuardFunction(project: Project, glob: string, typeName: string): Promise<FunctionCallIdentifier> {
     return findMatches(project, TypeScriptES6FileParser, glob, findTypeGuardFunctions(typeName))
         .then(mm => {
@@ -375,7 +378,11 @@ function moveFunctionsToMethods() {
             delineateMatches(fileOfInterest, findSubclassesPxe("Requirement")))
         .then(() => findSubclasses(inputProject, fileOfInterest, "Requirement"))
         .then(subclasses => Promise.all(subclasses.map(subclass =>
-            findTypeGuardFunction(inputProject, subclass.filePath, subclass.name))));
+            findTypeGuardFunction(inputProject, subclass.filePath, subclass.name))))
+        .then(typeGuardFunctions => {
+            logger.warn("Type guards: " + stringify(typeGuardFunctions))
+            return typeGuardFunctions;
+        });
 }
 
 
