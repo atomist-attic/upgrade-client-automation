@@ -103,15 +103,19 @@ function propertyAccessExpression(s: AddParameter.EnclosingScope, soFar: string)
     return propertyAccessExpression(s.enclosingScope, s.name + "." + soFar);
 }
 
+export function localFunctionCallPathExpression(name: string): AddParameter.PathExpression {
+    return `//CallExpression[/Identifier[@value='${name}']]`
+}
+
 export function functionCallPathExpression(fn: AddParameter.FunctionCallIdentifier) {
     if (AddParameter.isPrivateMethodAccess(fn.access)) {
-        // this should be the last identifier, that is the fn.name, but I don't know how to express that
+        // this should be the last identifier in the PropertyAccessExpression, but I don't know how to express that
         return `//CallExpression[/PropertyAccessExpression/Identifier[@value='${fn.name}']]`;
     }
     if (fn.enclosingScope) {
         return `//CallExpression[/PropertyAccessExpression[@value='${propertyAccessExpression(fn.enclosingScope, fn.name)}']]`
     }
-    return `//CallExpression[/Identifier[@value='${fn.name}']]`;
+    return localFunctionCallPathExpression(fn.name);
 }
 
 
