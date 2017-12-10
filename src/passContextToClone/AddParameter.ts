@@ -18,6 +18,10 @@ export namespace AddParameter {
 
         constructor(public why?: any) {
         }
+
+        public sameRequirement(other: Requirement): boolean {
+            return false;
+        }
     }
 
     export type EnclosingScope = ClassAroundMethod | EnclosingNamespace
@@ -60,11 +64,8 @@ export namespace AddParameter {
     }
 
     export function sameRequirement(r1: Requirement, r2: Requirement): boolean {
-        return r1.kind === r2.kind &&
-            sameFunctionCallIdentifier(r1.functionWithAdditionalParameter, r2.functionWithAdditionalParameter) &&
-            r1.functionWithAdditionalParameter.filePath === r2.functionWithAdditionalParameter.filePath &&
-            (!isPassArgumentRequirement(r1) ||
-                sameFunctionCallIdentifier(r1.enclosingFunction, (r2 as PassArgumentRequirement).enclosingFunction))
+        return r1.kind === r2.kind && r1.sameRequirement(r2)
+
     }
 
     export type Access = PublicFunctionAccess | PrivateFunctionAccess | PrivateMethodAccess
@@ -141,6 +142,12 @@ export namespace AddParameter {
             this.parameterName = params.parameterName;
             this.populateInTests = params.populateInTests;
         }
+
+        public sameRequirement(other: Requirement): boolean {
+            return isAddParameterRequirement(other) &&
+                sameFunctionCallIdentifier(this.functionWithAdditionalParameter, other.functionWithAdditionalParameter) &&
+                this.parameterName === other.parameterName
+        }
     }
 
     function describeAddParameter(r: AddParameterRequirement): string {
@@ -164,6 +171,11 @@ export namespace AddParameter {
             this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
             this.dummyValue = params.dummyValue;
             this.additionalImport = params.additionalImport;
+        }
+
+        public sameRequirement(other: Requirement): boolean {
+            return isPassDummyInTests(other) &&
+                sameFunctionCallIdentifier(this.functionWithAdditionalParameter, other.functionWithAdditionalParameter)
         }
     }
 
@@ -189,6 +201,12 @@ export namespace AddParameter {
             this.enclosingFunction = params.enclosingFunction;
             this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
             this.argumentValue = params.argumentValue;
+        }
+
+        public sameRequirement(other: Requirement): boolean {
+            return isPassArgumentRequirement(other) &&
+                sameFunctionCallIdentifier(this.functionWithAdditionalParameter, other.functionWithAdditionalParameter) &&
+                sameFunctionCallIdentifier(this.enclosingFunction, other.enclosingFunction)
         }
     }
 
