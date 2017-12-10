@@ -214,13 +214,11 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const addParameterPrivateRequirement: Requirement = {
-                ...addParameterRequirement({
+            const addParameterPrivateRequirement: Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: "src/DoesntMatter.ts",
                     access: { kind: "PrivateFunctionAccess" },
-                }),
-            };
+                });
 
             AddParameter.changesetForRequirement(input, addParameterPrivateRequirement)
                 .then(allRequirements)
@@ -264,13 +262,11 @@ describe("detection of consequences", () => {
                 },
             );
 
-            const original: Requirement = {
-                ...addParameterRequirement({
+            const original: Requirement = addParameterRequirement({
                     name: "privateFunciton",
                     filePath: fileToChange,
                     access: { kind: "PrivateFunctionAccess" },
-                }),
-            };
+                });
 
             AddParameter.changesetForRequirement(input, original)
                 .then(allRequirements)
@@ -280,7 +276,7 @@ describe("detection of consequences", () => {
                         && c.functionWithAdditionalParameter.name === "iShouldChange"
                         && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess",
                     ), stringify(consequences, null, 2));
-                    assert(!consequences.some(c => c.functionWithAdditionalParameter.filePath === fileToNotChange),
+                    assert(!consequences.some(c => (c as any).functionWithAdditionalParameter.filePath === fileToNotChange),
                         stringify(consequences, null, 2));
                     assert(!consequences.some(c => AddParameter.isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange));
                 })
@@ -621,8 +617,7 @@ describe("pass argument", () => {
              `,
             });
 
-        const instruction: PassArgumentRequirement = {
-            "kind": "Pass Argument",
+        const instruction: PassArgumentRequirement = new PassArgumentRequirement({
             "enclosingFunction": {
                 enclosingScope: { kind: "class around method", name: "DifferenceEngine", exported: true },
                 name: "cloneRepo",
@@ -640,7 +635,7 @@ describe("pass argument", () => {
                 access: { kind: "PublicFunctionAccess" },
             },
             "argumentValue": "context",
-        };
+        });
 
         printStructureOfFile(input, "src/project/diff/DifferenceEngine.ts").then(() =>
             AddParameter.implement(input, instruction).then(() => input.flush())
@@ -733,18 +728,17 @@ describe("populating dummy in test", () => {
              `,
             });
 
-        const instruction: PassDummyInTestsRequirement = {
+        const instruction: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
             functionWithAdditionalParameter: {
                 name: "myFunction", filePath: "doesntmatter",
                 access: { kind: "PublicFunctionAccess" },
             },
-            kind: "Pass Dummy In Tests",
             dummyValue: "{} as HandlerContext",
             additionalImport: {
                 kind: "library", name: "HandlerContext",
                 location: "@atomist/automation-client",
             },
-        }
+        })
 
         AddParameter.implement(input, instruction).then(() => input.flush())
             .then(() => {
@@ -783,8 +777,7 @@ describe("Adding a parameter", () => {
         const input = InMemoryProject.of(
             realProject.findFileSync(fileOfInterest));
 
-        const addParameterInstruction: AddParameterRequirement = {
-            kind: "Add Parameter",
+        const addParameterInstruction: AddParameterRequirement = new AddParameterRequirement({
             functionWithAdditionalParameter: {
                 enclosingScope: { kind: "class around method", name: "GitCommandGitProject", exported: true },
                 "name": "cloned",
@@ -805,7 +798,7 @@ describe("Adding a parameter", () => {
                     "localPath": "src/HandlerContext",
                 },
             },
-        };
+        });
 
         AddParameter.implement(input, addParameterInstruction).then(report => {
             console.log(stringify(report, null, 2));
@@ -896,12 +889,9 @@ describe("Adding a parameter", () => {
 
     it("Adds an import file too", done => {
         const input = copyOfBefore();
-        AddParameter.implement(input, {
-            ...addParameterRequirement({
+        AddParameter.implement(input, addParameterRequirement({
                 name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
-            },),
-            parameterType: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-        }).then(changed => input.flush().then(() => changed))
+            })).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 assert(after.includes(

@@ -71,7 +71,7 @@ function hasChild(parent: TreeNode, name: string): boolean {
 }
 
 const inputProject = new NodeFsLocalProject(null,
-    "/Users/jessitron/code/atomist/upgrade-client-automation/src/passContextToClone/");
+    "/Users/jessitron/code/atomist/upgrade-client-automation/");
 
 const fileOfInterest = "AddParameter.ts";
 const findUnionTypeComponents = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]/UnionType/SyntaxList/TypeReference/Identifier";
