@@ -7,6 +7,9 @@ import * as _ from "lodash";
 import { logger } from "@atomist/automation-client";
 import { AddParameter } from "../AddParameter";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
+import { doWithFileMatches } from "@atomist/automation-client/project/util/parseUtils";
+import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
+import stringify = require("json-stringify-safe");
 
 /*
  * To run this while working:
@@ -19,7 +22,8 @@ import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
  * next:
  */
 
-function printStructureOfFile(project: Project, path: string) {
+function printStructureOfFile(project: Project, path: string,
+                              howToPrint: (s: string) => void = (s) => console.log(s)) {
     return findMatches(project, TypeScriptES6FileParser, path,
         `/SourceFile`)
         .then(matches => {
@@ -27,7 +31,7 @@ function printStructureOfFile(project: Project, path: string) {
                 console.log("no matches found!")
             }
             matches.forEach(m => {
-                logger.warn(printMatch(m).join("\n"));
+                howToPrint(printMatch(m).join("\n"));
             })
         });
 }
@@ -77,13 +81,13 @@ const fileOfInterest = "AddParameter.ts";
 const findUnionTypeComponents = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]/UnionType/SyntaxList/TypeReference/Identifier";
 const findTypeAlias = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]";
 
-function delineateMatches(pxe: PathExpression) {
-    return inputProject.findFile(fileOfInterest)
+function delineateMatches(filePath: string, pxe: PathExpression) {
+    return inputProject.findFile(filePath)
     // .then(f => f.replace(/\/\* \[[0-9\/]+] ->? \*\//g, ""))
     // .then(f => f.replace(/\/\* <?->? \*\//g, ""))
         .then(() => inputProject.flush())
         .then(() => findMatches(inputProject, TypeScriptES6FileParser,
-            fileOfInterest,
+            filePath,
             pxe))
         .then(mm => {
             const n = mm.length;
@@ -112,16 +116,15 @@ function reallyEdit() {
             mm => {
                 console.log("found " + mm.length + " matches");
                 return mm.map(m => m.$value);
-            }).
-        then(interfacesInType => gatherKinds(interfacesInType).
-        then((kinds: InterfaceKind[]) => {
+            }).then(interfacesInType => gatherKinds(interfacesInType).then((kinds: InterfaceKind[]) => {
             const makeThemIntoClasses = interfacesInType.map(iit => () => {
                 return turnInterfaceToType(iit)
             });
             const callTheConstructors = kinds.map(ik => () =>
                 turnInstanceCreationIntoConstructorCalls(ik));
             return runInSequence(inputProject,
-                makeThemIntoClasses.concat(callTheConstructors))}))
+                makeThemIntoClasses.concat(callTheConstructors))
+        }))
         .then(() => turnUnionTypeToSuperclass());
 }
 
@@ -137,8 +140,7 @@ function findInstanceCreation(kind: KindString): PathExpression {
 
 function turnInstanceCreationIntoConstructorCalls(interfaceAndKind: InterfaceKind): Promise<void> {
     return findMatches(inputProject, TypeScriptES6FileParser, "**/*.ts",
-        findInstanceCreation(interfaceAndKind.kind)).then(mm =>
-    {
+        findInstanceCreation(interfaceAndKind.kind)).then(mm => {
         mm.forEach(m => {
             const removeKindProperty = m.$value.replace(new RegExp(`\s*kind: "${interfaceAndKind.kind}",?[\n]?`), "");
             return m.$value = `new ${interfaceAndKind.name}(${removeKindProperty})`;
@@ -146,16 +148,17 @@ function turnInstanceCreationIntoConstructorCalls(interfaceAndKind: InterfaceKin
     })
 }
 
-type KindString = string; /* does not include quotes */
+type KindString = string;
+
+/* does not include quotes */
 function gatherKinds(interfaceNames: string[]): Promise<InterfaceKind[]> {
     return Promise.all(
         interfaceNames.map(ident =>
-            matchesInFileOfInterest(findInterface(ident) + "//PropertySignature[/Identifier[@value='kind']]/LastTypeNode/StringLiteral" )
-                .then(mm =>
-            {
-                const km = requireExactlyOne(mm);
-                return { kind:  trimSemicolon(km.$value), name: ident };
-            })));
+            matchesInFileOfInterest(findInterface(ident) + "//PropertySignature[/Identifier[@value='kind']]/LastTypeNode/StringLiteral")
+                .then(mm => {
+                    const km = requireExactlyOne(mm);
+                    return { kind: trimSemicolon(km.$value), name: ident };
+                })));
 }
 
 const findInterface = (identifier: string) => `//InterfaceDeclaration[/Identifier[@value='${identifier}']]`;
@@ -214,7 +217,7 @@ const classTemplate = (name: string, superclass: string, kindString: string,
     const propertyDeclarations = classFields.map(f =>
         `public ${parameterNameAndType(f)};`);
     const populatePropertyFromParams = classFields.map(f =>
-    `this.${f.propertyName} = params.${f.propertyName};`);
+        `this.${f.propertyName} = params.${f.propertyName};`);
 
     const constructorParameterObjectPropertyDeclarations = classFields.concat(superclassFields).map(f =>
         parameterNameAndType(f));
@@ -260,12 +263,11 @@ const changeUnionToSuperclassRequirement = {
 // }
 
 function changeUnionToSuperclass() {
-    (logger as any).level = "warn";
     console.log("where");
     console.log("basedir: " + inputProject.baseDir);
-    inputProject.findFile(fileOfInterest)
+    return inputProject.findFile(fileOfInterest)
         .then(() => printStructureOfFile(inputProject, fileOfInterest))
-        .then(() => delineateMatches(findInstanceCreation("Pass Argument")))
+        .then(() => delineateMatches(fileOfInterest, findInstanceCreation("Pass Argument")))
         .then(() => reallyEdit())
         .then(() => inputProject.flush())
         .then(() => {
@@ -283,4 +285,51 @@ function changeUnionToSuperclass() {
 //     }
 // }
 
-changeUnionToSuperclass();
+//changeUnionToSuperclass();
+
+const stupidImports = "//ImportEqualsDeclaration[//FirstNode]";
+
+function dontImportFunctionsOrClassesThisWay() {
+
+    const fileOfInterest2 = "test/passContextToClone/editorTest.ts";
+
+    return inputProject.findFile(fileOfInterest2)
+        .then(() => printStructureOfFile(inputProject, fileOfInterest2,
+            (s) => logger.warn(s)))
+        .then(() => delineateMatches(fileOfInterest2, stupidImports))
+        .then(() =>
+            findMatches(inputProject, TypeScriptES6FileParser, "**/*.ts",
+                stupidImports))
+        .then(mm =>
+            mm.map(stupidImport => {
+                const ident = identifier(stupidImport)
+                const fullName = requireExactlyOne(
+                    childrenNamed(stupidImport, "FirstNode"), printMatch(stupidImport).join("\n")).$value;
+                return {
+                    path: (stupidImport as LocatedTreeNode).sourceLocation.path,
+                    importName: ident, newName: fullName,
+                    wholeImport: stupidImport.$value,
+                }
+            }))
+        .then(data => {
+            logger.warn(stringify(data, null, 2));
+            return data;
+        })
+        .then(data => {
+            return runInSequence(inputProject, data.map(d => () => {
+                return inputProject.findFile(d.path).then(file => file.getContent()
+                    .then(content => {
+                        const newContent = content.replace(d.wholeImport, "")
+                            .replace(new RegExp("\\s" + d.importName, "g"), " " + d.newName);
+                        return file.setContent(newContent)
+                    }).then(() => Promise.resolve()))
+            }))
+        }).then(() => inputProject.flush());
+
+}
+
+(logger as any).level = "warn";
+dontImportFunctionsOrClassesThisWay()
+    .then(() => {
+        logger.warn("DONE")
+    }).catch((error) => logger.error(error.message));
