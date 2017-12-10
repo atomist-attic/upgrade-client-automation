@@ -293,7 +293,6 @@ export namespace AddParameter {
     }
 
     export function implement(project: Project, requirement: Requirement): Promise<Report> {
-        logger.info("Implementing: " + stringify(requirement, null, 2));
         if (isAddParameterRequirement(requirement)) {
             return addParameter(project, requirement);
         }
