@@ -387,9 +387,14 @@ function findTypeGuardFunction(project: Project, glob: string, typeName: string)
         );
 }
 
-// does not assume local scope, but startsWithCheck does
+interface If {
+    condition: string,
+    body: string
+}
+
+// assumes local scope, does not find namespaced calls
 const findFunctionsThatCall = (whatTheyCall: FunctionCallIdentifier): PathExpression =>
-    `//FunctionDeclaration[${functionCallPathExpression(whatTheyCall)}] | ${pathExpressionIntoScope(whatTheyCall.enclosingScope) +
+    `${pathExpressionIntoScope(whatTheyCall.enclosingScope) +
     `//FunctionDeclaration[${localFunctionCallPathExpression(whatTheyCall.name)}]`}`;
 
 
@@ -419,32 +424,116 @@ function functionsThatCheck(project: Project, glob: string,
                             functionTheyCall: FunctionCallIdentifier): Promise<FunctionCallIdentifier[]> {
 
     const pxe = findFunctionsThatCall(functionTheyCall);
- return   findMatches(project, TypeScriptES6FileParser, glob,
-        pxe).then(mm => mm
-        .filter(m => startsWithCheck(functionTheyCall, m))
-        .map(m => functionCallIdentifierFromTreeNode(m)))
+    return findMatches(project, TypeScriptES6FileParser, glob, pxe)
+        .then(mm => mm
+            .filter(m => startsWithCheck(functionTheyCall, m))
+            .map(m => functionCallIdentifierFromTreeNode(m)))
 }
 
+/**
+ * OK. Look, here's where I'm leaving off.
+ *
+ * I want to convert functions like describeRequirement, implement, and findConsequencesOfOne
+ * to methods.
+ * So far, I can identify those functions, functions that first make a call to a typeguard
+ * of one of the subclasses of Requirement. ("checky functions")
+ *
+ * Converting that into instructions for AddMethod gets tricky -
+ * what I want is to parse the body of the checky function, something like
+ * Rep(`if($typeGuardMethodCall($arg)) {
+ *    $bodyOfNewMethodOnGuardedType
+ * }`) Opt(else) ${bodyOfSuperclassMethod}
+ *
+ * that is, I want microgrammars to do this.
+ * The critical feature that I need in microgrammars is balancing of delimiters:
+ * when a set of parens or curly braces appear in a microgrammar expression, they
+ * match sets that balance in the parsed code (accounting for all delimiters in the language,
+ * quotes and curlies and square braces and parens).
+ *
+ * To continue down this path then, means copying something like:
+ export function describeRequirement(r: Requirement): string {
+        if (isAddParameterRequirement(r)) {
+            return describeAddParameter(r)
+        } else if (isPassArgumentRequirement(r)) {
+            return describePassArgument(r);
+        } else if (isPassDummyInTests(r)) {
+            return describePassDummyInTests(r);
+        } else {
+            return stringify(r);
+        }
+  }
+ *
+ * into microgrammar test suite and trying to parse it.
+ * This is what I've been wanting to implement in microgrammars.
+ *
+ * However, right now, the need to turn this whole passContextToClone editor
+ * into one that constructs editors for downstream systems as well
+ * is much more important and also hard and compelling.
+ *
+ * For the weekend, I will call it a success that I converted Requirements into classes
+ * at all.
+ */
 function moveFunctionsToMethods() {
     /* let's find functions that call isBlahBlah */
     return delineateMatches(fileOfInterest,
         findFunctionsThatCall({
             name: "isAddParameterRequirement",
             access: { kind: "PublicFunctionAccess" },
-        } as FunctionCallIdentifier))
+        } as FunctionCallIdentifier) + "//IfStatement")
         .then(() => findSubclasses(inputProject, fileOfInterest, "Requirement"))
         .then(subclasses => Promise.all(subclasses.map(subclass =>
             findTypeGuardFunction(inputProject, subclass.filePath, subclass.name))))
         .then(typeGuardFunctions => {
-            logger.warn("Type guards: " + stringify(typeGuardFunctions))
+            logger.warn("Type guards: " + stringify(typeGuardFunctions));
             return typeGuardFunctions;
-        }).then(typeGuardFunctions => _.flatMap(typeGuardFunctions, t =>
+        }).then(typeGuardFunctions => Promise.all(typeGuardFunctions.map(t =>
             functionsThatCheck(inputProject, fileOfInterest, t)))
-        .then(checkyFunctions => {
+            .then(a => _.flatten(a)))
+        .then((checkyFunctions: FunctionCallIdentifier[]) => {
             logger.warn("Functions that check type guards: " + checkyFunctions.map(c => stringify(c)).join("\n"))
             return checkyFunctions
         });
 }
+
+interface CheckyFunction {
+    fci: FunctionCallIdentifier;
+
+}
+
+function whatMethodsToAdd(checkyFunction: CheckyFunction): AddMethodToClass[] {
+    return []
+}
+
+
+interface AddMethodToClass {
+    classSpec: ClassSpec,
+    name: string,
+    returnType: string,
+    /* if body is null, method is abstract */
+    body?: string
+}
+
+function addMethodToClass(project: Project, requirement: AddMethodToClass): Promise<void> {
+    return findMatches(project, TypeScriptES6FileParser, requirement.classSpec.filePath,
+        `//ClassDeclaration[/Identifier[@value='${requirement.classSpec.name}']]`)
+        .then(mm => {
+            const m = requireExactlyOne(mm);
+            // find block
+            // add method before last curly brace
+        })
+}
+
+const newMethodTemplate = (name: string, returnType: string, body: string) => {
+    if (body) {
+        return `
+    public ${name}(): ${returnType} {
+        ${body}
+    }
+`
+    } else {
+        return `\npublic ${name}(): ${returnType};\n`
+    }
+};
 
 
 (logger as any).level = "warn";
