@@ -535,8 +535,35 @@ const newMethodTemplate = (name: string, returnType: string, body: string) => {
     }
 };
 
+function findFunctionDeclarationsInNamespacePxe(name: string): PathExpression {
+    const namespaceBlock = `//ModuleDeclaration[/Identifier[@value='${name}']]/ModuleBlock`;
+
+  //  return `${namespaceBlock}//ClassDeclaration | ${namespaceBlock}//FunctionDeclaration`;
+    return `${namespaceBlock}//FunctionDeclaration`;
+}
+
+function findDeclarationsInNamespace(project: Project, glob: string, namespaceName: string): Promise<FunctionCallIdentifier[]> {
+    return findMatches(project, TypeScriptES6FileParser, glob,
+        findFunctionDeclarationsInNamespacePxe(namespaceName))
+        .then(mm => mm.map(m => functionCallIdentifierFromTreeNode(m)))
+}
+
+/**
+ * OK. I can find the functions,
+ * and I know how to find calls to those functions
+ * and then I could modify those calls.
+ * I also need to change the imports, to import them all individually ...
+ */
+function removeNamespace(namespaceName: string, filePath: string) {
+    return findDeclarationsInNamespace(inputProject, filePath, namespaceName)
+        .then(declarationNames =>
+        {
+            logger.warn("Declarations to move: " + stringify(declarationNames));
+            return declarationNames;
+        })
+}
 
 (logger as any).level = "warn";
-moveFunctionsToMethods().then(() => {
+removeNamespace("AddParameter", fileOfInterest).then(() => {
     logger.warn("DONE")
 }, (error) => logger.error(error.toString()));
