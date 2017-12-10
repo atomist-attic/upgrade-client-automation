@@ -29,15 +29,9 @@ import * as _ from "lodash";
 import { Project } from "@atomist/automation-client/project/Project";
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
 import { logger } from "@atomist/automation-client";
-/* [0/6] -> *//* <- */
-/* [1/6] -> *//* <- */
-/* [2/6] -> *//* <- */
-/* [3/6] -> *//* <- */
 import { AddParameter } from "../../src/passContextToClone/AddParameter";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
 import { Report } from "../../src/passContextToClone/Report";
-/* [4/6] -> *//* <- */
-/* [5/6] -> *//* <- */
 
 
 function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameter.AddParameterRequirement {
