@@ -2,7 +2,7 @@
 /*
  * Report is the output of attempting to implement requirements.
  */
-import { TypescriptEditing } from "./TypescriptEditing";
+import * as TypescriptEditing from "./TypescriptEditing";
 
 
 export interface Unimplemented {

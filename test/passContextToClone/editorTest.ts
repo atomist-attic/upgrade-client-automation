@@ -29,7 +29,7 @@ import * as _ from "lodash";
 import { Project } from "@atomist/automation-client/project/Project";
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
 import { logger } from "@atomist/automation-client";
-import { TypescriptEditing } from "../../src/passContextToClone/TypescriptEditing";
+import * as TypescriptEditing from "../../src/passContextToClone/TypescriptEditing";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
 import { Report } from "../../src/passContextToClone/Report";
 

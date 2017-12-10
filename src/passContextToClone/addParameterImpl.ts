@@ -1,5 +1,5 @@
 import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
-import { TypescriptEditing } from "./TypescriptEditing";
+import * as TypescriptEditing from "./TypescriptEditing";
 
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 

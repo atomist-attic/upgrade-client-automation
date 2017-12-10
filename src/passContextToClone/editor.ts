@@ -20,7 +20,7 @@ import { EditResult, successfulEdit } from "@atomist/automation-client/operation
 import { AddImport } from "./manipulateImports";
 import stringify = require("json-stringify-safe");
 
-import { TypescriptEditing } from "./TypescriptEditing";
+import * as TypescriptEditing from "./TypescriptEditing";
 import { combine, emptyReport, Report } from "./Report";
 import { Changeset, describeChangeset } from "./Changeset";
 

@@ -1,6 +1,4 @@
-
-
-import { TypescriptEditing } from "./TypescriptEditing";
+import * as TypescriptEditing from "./TypescriptEditing";
 
 
 export interface Consequences {

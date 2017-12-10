@@ -8,7 +8,7 @@ import { logger } from "@atomist/automation-client";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import stringify = require("json-stringify-safe");
-import { TypescriptEditing } from "../passContextToClone/TypescriptEditing";
+import * as TypescriptEditing from "../passContextToClone/TypescriptEditing";
 import FunctionCallIdentifier = TypescriptEditing.FunctionCallIdentifier;
 import {
     functionCallIdentifierFromTreeNode, functionCallPathExpression, localFunctionCallPathExpression,
