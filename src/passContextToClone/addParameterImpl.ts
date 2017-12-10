@@ -44,7 +44,7 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
 
         const instruction: PassArgumentRequirement = new PassArgumentRequirement({
-                        enclosingFunction: {
+            enclosingFunction: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
                 access: determineAccess(enclosingFunction),
@@ -59,7 +59,7 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             requirement.functionWithAdditionalParameter, enclosingFunctionName);
 
         const passArgument: PassArgumentRequirement = new PassArgumentRequirement({
-                        enclosingFunction: {
+            enclosingFunction: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
                 access: determineAccess(enclosingFunction),
@@ -69,7 +69,7 @@ function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             why: requirement,
         });
         const newParameterForMe: AddParameterRequirement = new AddParameterRequirement({
-                        functionWithAdditionalParameter: {
+            functionWithAdditionalParameter: {
                 enclosingScope: determineScope(enclosingFunction),
                 name: enclosingFunctionName, filePath,
                 access: determineAccess(enclosingFunction),
@@ -183,7 +183,6 @@ export function passDummyInTests(project: Project, requirement: PassDummyInTests
 }
 
 
-
 export function addParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
     return AddImport.addImport(project,
         requirement.functionWithAdditionalParameter.filePath,
@@ -212,7 +211,6 @@ export function addParameter(project: Project, requirement: AddParameterRequirem
                 })
         });
 }
-
 
 
 export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScope?: EnclosingScope): EnclosingScope | undefined {
@@ -291,7 +289,7 @@ function functionDeclarationPathExpression(fn: FunctionCallIdentifier): PathExpr
 
 export function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Consequences> {
     const passDummyInTests: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
-                functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+        functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
         dummyValue: requirement.populateInTests.dummyValue,
         additionalImport: requirement.populateInTests.additionalImport,
     });

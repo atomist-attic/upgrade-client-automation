@@ -41,7 +41,7 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenCha
             localPath: "src/HandlerContext",
         };
         const originalRequirement: AddParameter.Requirement = new AddParameterRequirement({
-                        functionWithAdditionalParameter: params,
+            functionWithAdditionalParameter: params,
             parameterType: handlerContextType,
             parameterName: "context",
             populateInTests: {

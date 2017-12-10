@@ -1,4 +1,3 @@
-
 import { AddImport } from "./manipulateImports";
 import stringify = require("json-stringify-safe");
 import { Project } from "@atomist/automation-client/project/Project";
@@ -9,16 +8,17 @@ import { Consequences, emptyConsequences } from "./Consequences";
 import { Changeset } from "./Changeset";
 
 
-
 export namespace AddParameter {
 
     /*
      * Requirements describe what we need to do
      */
     export abstract class Requirement {
-       public kind: string;
-       constructor(public why?: any) {}     
-   }
+        public kind: string;
+
+        constructor(public why?: any) {
+        }
+    }
 
     export type EnclosingScope = ClassAroundMethod | EnclosingNamespace
 
@@ -116,29 +116,31 @@ export namespace AddParameter {
 
     export class AddParameterRequirement extends Requirement {
         public readonly kind: "Add Parameter" = "Add Parameter";
-        
+
         public functionWithAdditionalParameter: FunctionCallIdentifier;
-public parameterType: AddImport.ImportIdentifier;
-public parameterName: string;
-public populateInTests: {
+        public parameterType: AddImport.ImportIdentifier;
+        public parameterName: string;
+        public populateInTests: {
             dummyValue: string;
             additionalImport?: AddImport.ImportIdentifier;
         };
-        
-        constructor(params: {functionWithAdditionalParameter: FunctionCallIdentifier,
-parameterType: AddImport.ImportIdentifier,
-parameterName: string,
-populateInTests: {
-            dummyValue: string;
-            additionalImport?: AddImport.ImportIdentifier;
-        },
-why?: any}) {
+
+        constructor(params: {
+            functionWithAdditionalParameter: FunctionCallIdentifier,
+            parameterType: AddImport.ImportIdentifier,
+            parameterName: string,
+            populateInTests: {
+                dummyValue: string;
+                additionalImport?: AddImport.ImportIdentifier;
+            },
+            why?: any
+        }) {
             super(params.why);
             this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
-this.parameterType = params.parameterType;
-this.parameterName = params.parameterName;
-this.populateInTests = params.populateInTests;
-        } 
+            this.parameterType = params.parameterType;
+            this.parameterName = params.parameterName;
+            this.populateInTests = params.populateInTests;
+        }
     }
 
     function describeAddParameter(r: AddParameterRequirement): string {
@@ -147,20 +149,22 @@ this.populateInTests = params.populateInTests;
 
     export class PassDummyInTestsRequirement extends Requirement {
         public readonly kind: "Pass Dummy In Tests" = "Pass Dummy In Tests";
-        
+
         public functionWithAdditionalParameter: FunctionCallIdentifier;
-public dummyValue: string;
-public additionalImport?: AddImport.ImportIdentifier;
-        
-        constructor(params: {functionWithAdditionalParameter: FunctionCallIdentifier,
-dummyValue: string,
-additionalImport?: AddImport.ImportIdentifier,
-why?: any}) {
+        public dummyValue: string;
+        public additionalImport?: AddImport.ImportIdentifier;
+
+        constructor(params: {
+            functionWithAdditionalParameter: FunctionCallIdentifier,
+            dummyValue: string,
+            additionalImport?: AddImport.ImportIdentifier,
+            why?: any
+        }) {
             super(params.why);
             this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
-this.dummyValue = params.dummyValue;
-this.additionalImport = params.additionalImport;
-        } 
+            this.dummyValue = params.dummyValue;
+            this.additionalImport = params.additionalImport;
+        }
     }
 
     function describePassDummyInTests(r: PassDummyInTestsRequirement): string {
@@ -170,20 +174,22 @@ this.additionalImport = params.additionalImport;
 
     export class PassArgumentRequirement extends Requirement {
         public readonly kind: "Pass Argument" = "Pass Argument";
-        
+
         public enclosingFunction: FunctionCallIdentifier;
-public functionWithAdditionalParameter: FunctionCallIdentifier;
-public argumentValue: string;
-        
-        constructor(params: {enclosingFunction: FunctionCallIdentifier,
-functionWithAdditionalParameter: FunctionCallIdentifier,
-argumentValue: string,
-why?: any}) {
+        public functionWithAdditionalParameter: FunctionCallIdentifier;
+        public argumentValue: string;
+
+        constructor(params: {
+            enclosingFunction: FunctionCallIdentifier,
+            functionWithAdditionalParameter: FunctionCallIdentifier,
+            argumentValue: string,
+            why?: any
+        }) {
             super(params.why);
             this.enclosingFunction = params.enclosingFunction;
-this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
-this.argumentValue = params.argumentValue;
-        } 
+            this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
+            this.argumentValue = params.argumentValue;
+        }
     }
 
     function describePassArgument(r: PassArgumentRequirement): string {
@@ -281,8 +287,6 @@ this.argumentValue = params.argumentValue;
         }
         return Promise.resolve(reportUnimplemented(requirement, "I don't know how to implement that yet"))
     }
-
-
 
 
 }
