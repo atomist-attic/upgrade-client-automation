@@ -275,12 +275,17 @@ function scopePathExpressionComponents(s: AddParameter.EnclosingScope, soFar: st
     return [component].concat(soFar)
 }
 
+export function pathExpressionIntoScope(scope: AddParameter.EnclosingScope): AddParameter.PathExpression {
+    const components = scopePathExpressionComponents(scope);
+    return components.length === 0 ? "" : "//" + components.join("//");
+}
+
+
 function functionDeclarationPathExpression(fn: AddParameter.FunctionCallIdentifier): AddParameter.PathExpression {
     const identification = `[/Identifier[@value='${fn.name}']]`;
     const methodOrFunction = fn.enclosingScope && AddParameter.isClassAroundMethod(fn.enclosingScope) ? "MethodDeclaration" : "FunctionDeclaration";
 
-    const components = scopePathExpressionComponents(fn.enclosingScope).concat([methodOrFunction + identification]);
-    return "//" + components.join("//");
+    return pathExpressionIntoScope(fn.enclosingScope) + "//" + methodOrFunction + identification;
 }
 
 
