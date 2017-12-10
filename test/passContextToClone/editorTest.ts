@@ -36,6 +36,8 @@ import PassArgumentRequirement = AddParameter.PassArgumentRequirement;
 import { AddParameter } from "../../src/passContextToClone/AddParameter";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
 import { Report } from "../../src/passContextToClone/Report";
+import isAddParameterRequirement = AddParameter.isAddParameterRequirement;
+import isPassArgumentRequirement = AddParameter.isPassArgumentRequirement;
 
 
 function addParameterRequirement(fci: Partial<AddParameter.FunctionCallIdentifier>): AddParameterRequirement {
@@ -187,10 +189,10 @@ describe("detection of consequences", () => {
                 .then(allRequirements)
                 .then(consequences => {
                     assert(!consequences.some(c => {
-                        return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.filePath === fileToNotChange;
+                        return isAddParameterRequirement(c) && c.functionWithAdditionalParameter.filePath === fileToNotChange;
                     }), stringify(consequences, null, 2));
                     assert(!consequences.some(c => {
-                        return c.kind === "Pass Argument" && c.enclosingFunction.filePath === fileToNotChange;
+                        return isPassArgumentRequirement(c) && c.enclosingFunction.filePath === fileToNotChange;
                     }), stringify(consequences, null, 2));
                 })
                 .then(() => done(), done);
@@ -274,7 +276,7 @@ describe("detection of consequences", () => {
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
-                        c.kind === "Add Parameter"
+                        isAddParameterRequirement(c)
                         && c.functionWithAdditionalParameter.name === "iShouldChange"
                         && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess",
                     ), stringify(consequences, null, 2));
@@ -306,7 +308,7 @@ describe("detection of consequences", () => {
                 .then(allRequirements)
                 .then(consequences => {
                     assert(consequences.some(c =>
-                        c.kind === "Pass Argument" && c.enclosingFunction.enclosingScope.name === "Classy"));
+                        isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"));
                 })
                 .then(() => done(), done);
         });
@@ -338,9 +340,9 @@ describe("detection of consequences", () => {
                 .then(() => AddParameter.changesetForRequirement(input, original))
                 .then(allRequirements)
                 .then(consequences => {
-                    assert(consequences.some(c => c.kind === "Pass Argument" && c.enclosingFunction.enclosingScope.name === "Classy"),
+                    assert(consequences.some(c => isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Classy"),
                         stringify(consequences, null, 2));
-                    assert(consequences.some(c => c.kind === "Pass Argument" && c.enclosingFunction.enclosingScope.name === "Clicker"),
+                    assert(consequences.some(c => isPassArgumentRequirement(c) && c.enclosingFunction.enclosingScope.name === "Clicker"),
                         stringify(consequences, null, 2));
                 })
                 .then(() => done(), done);
@@ -373,7 +375,7 @@ describe("detection of consequences", () => {
                 .then(() =>  AddParameter.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
-                    const c = consequences.find(c => c.kind === "Pass Argument" &&
+                    const c = consequences.find(c => isPassArgumentRequirement(c) &&
                         c.enclosingFunction.enclosingScope.name === "Classy" &&
                         c.enclosingFunction.name === "otherThinger" &&
                         c.functionWithAdditionalParameter.name === "thinger") as PassArgumentRequirement;
@@ -407,7 +409,7 @@ describe("detection of consequences", () => {
                     .then(allRequirements))
                 .then(consequences => {
                     assert(consequences.some(c => {
-                        return c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger"
+                        return isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger"
                             && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess";
                     }))
                 })
@@ -434,7 +436,7 @@ describe("detection of consequences", () => {
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
-                        c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                        isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateFunctionAccess");
                 })
@@ -469,7 +471,7 @@ describe("detection of consequences", () => {
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
-                        c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                        isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
                 })
@@ -504,7 +506,7 @@ describe("detection of consequences", () => {
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: AddParameterRequirement = consequences.find(c =>
-                        c.kind === "Add Parameter" && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
+                        isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger") as AddParameterRequirement;
                     assert(consequenceOfInterest);
                     assert.equal(consequenceOfInterest.functionWithAdditionalParameter.access.kind, "PrivateMethodAccess");
                 })
