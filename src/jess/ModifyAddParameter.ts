@@ -5,17 +5,18 @@ import { Project } from "@atomist/automation-client/project/Project";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 import { logger } from "@atomist/automation-client";
-import { AddParameter } from "../passContextToClone/AddParameter";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
-import { doWithFileMatches } from "@atomist/automation-client/project/util/parseUtils";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import stringify = require("json-stringify-safe");
+import { AddParameter } from "../passContextToClone/AddParameter";
+import FunctionCallIdentifier = AddParameter.FunctionCallIdentifier;
+import { functionCallIdentifierFromTreeNode } from "../passContextToClone/addParameterImpl";
 
 /*
  * To run this while working:
  *
- * cd src/passContextToClone/
- * watch "git checkout *.ts; ts-node jess/ModifyAddParameter.ts" jess
+ * cd src/
+ * watch "git checkout passContextToClone; ts-node jess/ModifyAddParameter.ts" jess
  *
  * and then push alt-cmd-Y in IntelliJ on AddParameter.ts to refresh it
  *
@@ -77,7 +78,7 @@ function hasChild(parent: TreeNode, name: string): boolean {
 const inputProject = new NodeFsLocalProject(null,
     "/Users/jessitron/code/atomist/upgrade-client-automation/");
 
-const fileOfInterest = "AddParameter.ts";
+const fileOfInterest = "src/passContextToClone/AddParameter.ts";
 const findUnionTypeComponents = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]/UnionType/SyntaxList/TypeReference/Identifier";
 const findTypeAlias = "/SourceFile//TypeAliasDeclaration[/Identifier[@value='Requirement']]";
 
@@ -92,9 +93,12 @@ function delineateMatches(filePath: string, pxe: PathExpression) {
         .then(mm => {
             const n = mm.length;
             mm.forEach((m, i) => {
-                const startMarker = n > 1 ? `/* [${i}/${n}] -> */` : `/* -> */`;
+                const startMarker = n > 1 ? `/* [${i + 1}/${n}] -> */` : `/* -> */`;
                 m.$value = startMarker + m.$value + "/* <- */"
             });
+            if (n === 0) {
+                logger.warn("no matches to delineate: " + pxe)
+            }
             if (n === 1) {
                 logger.warn(printMatch(mm[0]).join("\n"));
             }
@@ -328,8 +332,54 @@ function dontImportFunctionsOrClassesThisWay() {
 
 }
 
+//
+// dontImportFunctionsOrClassesThisWay()
+//     .then(() => {
+//         logger.warn("DONE")
+//     }).catch((error) => logger.error(error.message));
+
+const findSubclassesPxe = (superclassName: string): PathExpression =>
+    `//ClassDeclaration[//HeritageClause[//Identifier[@value='${superclassName}']]]`;
+
+const findTypeGuardFunctions = (guardedType: string): PathExpression =>
+    `//FunctionDeclaration[/FirstTypeNode[/IsKeyword][//Identifier[@value='${guardedType}']]]`;
+
+interface ClassSpec {
+    name: string,
+    filePath: string,
+}
+
+function findSubclasses(project: Project, glob: string, superclassName: string): Promise<ClassSpec[]> {
+    return findMatches(project, TypeScriptES6FileParser, glob, findSubclassesPxe(superclassName))
+        .then(mm => mm.map(subclassMatch => {
+            return {
+                name: identifier(subclassMatch),
+                filePath: (subclassMatch as LocatedTreeNode).sourceLocation.path,
+            }
+        }))
+}
+
+function findTypeGuardFunction(project: Project, glob: string, typeName: string): Promise<FunctionCallIdentifier> {
+    return findMatches(project, TypeScriptES6FileParser, glob, findTypeGuardFunctions(typeName))
+        .then(mm => {
+                const m = requireExactlyOne(mm);
+                return functionCallIdentifierFromTreeNode(m)
+            },
+        );
+}
+
+function moveFunctionsToMethods() {
+    /* let's find functions that call isBlahBlah */
+    return delineateMatches(fileOfInterest, findTypeGuardFunctions("AddParameterRequirement"))
+        .then(() =>
+            delineateMatches(fileOfInterest, findSubclassesPxe("Requirement")))
+        .then(() => findSubclasses(inputProject, fileOfInterest, "Requirement"))
+        .then(subclasses => Promise.all(subclasses.map(subclass =>
+            findTypeGuardFunction(inputProject, subclass.filePath, subclass.name))));
+}
+
+
 (logger as any).level = "warn";
-dontImportFunctionsOrClassesThisWay()
-    .then(() => {
-        logger.warn("DONE")
-    }).catch((error) => logger.error(error.message));
+moveFunctionsToMethods().then(() => {
+    logger.warn("DONE")
+}, (error) => logger.error(error.toString()));
