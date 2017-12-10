@@ -6,14 +6,13 @@ import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as _ from "lodash";
 import { logger } from "@atomist/automation-client";
 import { AddParameter } from "../AddParameter";
-import AddParameterRequirement = AddParameter.AddParameterRequirement;
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 
 /*
  * To run this while working:
  *
  * cd src/passContextToClone/
- * watch "ts-node jess/ModifyAddParameter.ts" jess
+ * watch "git checkout *.ts; ts-node jess/ModifyAddParameter.ts" jess
  *
  * and then push alt-cmd-Y in IntelliJ on AddParameter.ts to refresh it
  *
@@ -28,7 +27,7 @@ function printStructureOfFile(project: Project, path: string) {
                 console.log("no matches found!")
             }
             matches.forEach(m => {
-                console.log(printMatch(m).join("\n"));
+                logger.warn(printMatch(m).join("\n"));
             })
         });
 }
@@ -113,12 +112,50 @@ function reallyEdit() {
             mm => {
                 console.log("found " + mm.length + " matches");
                 return mm.map(m => m.$value);
-            }).then(interfacesInType =>
-            runInSequence(inputProject,
-                interfacesInType.map(iit => () => {
-                    return turnInterfaceToType(iit)
-                })))
+            }).
+        then(interfacesInType => gatherKinds(interfacesInType).
+        then((kinds: InterfaceKind[]) => {
+            const makeThemIntoClasses = interfacesInType.map(iit => () => {
+                return turnInterfaceToType(iit)
+            });
+            const callTheConstructors = kinds.map(ik => () =>
+                turnInstanceCreationIntoConstructorCalls(ik));
+            return runInSequence(inputProject,
+                makeThemIntoClasses.concat(callTheConstructors))}))
         .then(() => turnUnionTypeToSuperclass());
+}
+
+interface InterfaceKind {
+    name: string,
+    kind: KindString
+}
+
+
+function findInstanceCreation(kind: KindString): PathExpression {
+    return `//ObjectLiteralExpression[/SyntaxList/PropertyAssignment[/Identifier[@value='kind']][/StringLiteral[@value='${kind}']]]`;
+}
+
+function turnInstanceCreationIntoConstructorCalls(interfaceAndKind: InterfaceKind): Promise<void> {
+    return findMatches(inputProject, TypeScriptES6FileParser, "**/*.ts",
+        findInstanceCreation(interfaceAndKind.kind)).then(mm =>
+    {
+        mm.forEach(m => {
+            const removeKindProperty = m.$value.replace(new RegExp(`\s*kind: "${interfaceAndKind.kind}",?[\n]?`), "");
+            return m.$value = `new ${interfaceAndKind.name}(${removeKindProperty})`;
+        })
+    })
+}
+
+type KindString = string; /* does not include quotes */
+function gatherKinds(interfaceNames: string[]): Promise<InterfaceKind[]> {
+    return Promise.all(
+        interfaceNames.map(ident =>
+            matchesInFileOfInterest(findInterface(ident) + "//PropertySignature[/Identifier[@value='kind']]/LastTypeNode/StringLiteral" )
+                .then(mm =>
+            {
+                const km = requireExactlyOne(mm);
+                return { kind:  trimSemicolon(km.$value), name: ident };
+            })));
 }
 
 const findInterface = (identifier: string) => `//InterfaceDeclaration[/Identifier[@value='${identifier}']]`;
@@ -144,11 +181,10 @@ function turnInterfaceToType(ident: string): Promise<void> {
     return matchesInFileOfInterest(findInterface(ident))
         .then((interfaceMatches: MatchResult[]) => {
             const interfaceMatch = requireExactlyOne(interfaceMatches);
-            const propMatches: MatchResult[] = interfaceMatch.evaluateExpression("//PropertySignature")
+            const propMatches: MatchResult[] = interfaceMatch.evaluateExpression("/SyntaxList/PropertySignature");
             const properties: ClassProperty[] = propMatches.map(propMatch => {
                 const propertyName = identifier(propMatch);
                 const optional = hasChild(propMatch, "QuestionToken");
-                logger.warn("value is " + propMatch.$value);
                 const propertyType = trimSemicolon(propMatch.$value.match(/:([\s\S]*)$/)[1].trim());
                 return { propertyName, optional, propertyType }
             });
@@ -228,7 +264,7 @@ console.log("where");
 console.log("basedir: " + inputProject.baseDir);
 inputProject.findFile(fileOfInterest)
     .then(() => printStructureOfFile(inputProject, fileOfInterest))
-    .then(() => delineateMatches(findTypeAlias))
+    .then(() => delineateMatches(findInstanceCreation("Pass Argument")))
     .then(() => reallyEdit())
     .then(() => inputProject.flush())
     .then(() => {
