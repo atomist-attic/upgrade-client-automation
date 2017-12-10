@@ -259,15 +259,28 @@ const changeUnionToSuperclassRequirement = {
 //     superclassFields: { name: "why?", typeName: "any"}]
 // }
 
-(logger as any).level = "warn";
-console.log("where");
-console.log("basedir: " + inputProject.baseDir);
-inputProject.findFile(fileOfInterest)
-    .then(() => printStructureOfFile(inputProject, fileOfInterest))
-    .then(() => delineateMatches(findInstanceCreation("Pass Argument")))
-    .then(() => reallyEdit())
-    .then(() => inputProject.flush())
-    .then(() => {
-        logger.warn("DONE")
-    })
-    .catch((error) => logger.error(error.message));
+function changeUnionToSuperclass() {
+    (logger as any).level = "warn";
+    console.log("where");
+    console.log("basedir: " + inputProject.baseDir);
+    inputProject.findFile(fileOfInterest)
+        .then(() => printStructureOfFile(inputProject, fileOfInterest))
+        .then(() => delineateMatches(findInstanceCreation("Pass Argument")))
+        .then(() => reallyEdit())
+        .then(() => inputProject.flush())
+        .then(() => {
+            logger.warn("DONE")
+        })
+        .catch((error) => logger.error(error.message));
+}
+
+// function moveFunctionsAround() {
+//     const moveInterfaceRequirement = {
+//         fromFilePath: "src/passContextToClone/AddParameter.ts",
+//         interfaceSpec: {
+//             name: "AddParameterRequirement"
+//         }
+//     }
+// }
+
+changeUnionToSuperclass();
