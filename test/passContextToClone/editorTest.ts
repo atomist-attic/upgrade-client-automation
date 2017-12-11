@@ -32,6 +32,8 @@ import { logger } from "@atomist/automation-client";
 import * as TypescriptEditing from "../../src/passContextToClone/TypescriptEditing";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
 import { Report } from "../../src/passContextToClone/Report";
+import { AddParameterRequirement } from "../../src/passContextToClone/TypescriptEditing";
+import { isAddMigrationRequirement } from "../../src/passContextToClone/AddMigrationRequirement";
 
 
 function addParameterRequirement(fci: Partial<TypescriptEditing.FunctionCallIdentifier>): TypescriptEditing.AddParameterRequirement {
@@ -175,9 +177,9 @@ describe("detection of consequences", () => {
             );
 
             const addParameterPublicRequirement: TypescriptEditing.Requirement = addParameterRequirement({
-                    name: "privateFunciton",
-                    filePath: "src/DoesntMatter.ts",
-                });
+                name: "privateFunciton",
+                filePath: "src/DoesntMatter.ts",
+            });
 
             TypescriptEditing.changesetForRequirement(input, addParameterPublicRequirement)
                 .then(allRequirements)
@@ -209,10 +211,10 @@ describe("detection of consequences", () => {
             );
 
             const addParameterPrivateRequirement: TypescriptEditing.Requirement = addParameterRequirement({
-                    name: "privateFunciton",
-                    filePath: "src/DoesntMatter.ts",
-                    access: { kind: "PrivateFunctionAccess" },
-                });
+                name: "privateFunciton",
+                filePath: "src/DoesntMatter.ts",
+                access: { kind: "PrivateFunctionAccess" },
+            });
 
             TypescriptEditing.changesetForRequirement(input, addParameterPrivateRequirement)
                 .then(allRequirements)
@@ -257,10 +259,10 @@ describe("detection of consequences", () => {
             );
 
             const original: TypescriptEditing.Requirement = addParameterRequirement({
-                    name: "privateFunciton",
-                    filePath: fileToChange,
-                    access: { kind: "PrivateFunctionAccess" },
-                });
+                name: "privateFunciton",
+                filePath: fileToChange,
+                access: { kind: "PrivateFunctionAccess" },
+            });
 
             TypescriptEditing.changesetForRequirement(input, original)
                 .then(allRequirements)
@@ -362,7 +364,7 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>  TypescriptEditing.changesetForRequirement(input, original)
+                .then(() => TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const c = consequences.find(c => TypescriptEditing.isPassArgumentRequirement(c) &&
@@ -377,6 +379,41 @@ describe("detection of consequences", () => {
         });
 
     });
+
+    describe("Add Parameter on a public function/method leads to a migration", () => {
+
+        it("Requests a new migration when an exported function is changed", done => {
+            const fileOfInterest = "src/thinger.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
+        export function thinger() {
+            return "something about your context";
+        }\n`,
+            });
+
+            const original: TypescriptEditing.Requirement = new AddParameterRequirement({
+                "functionWithAdditionalParameter": {
+                    name: "thinger",
+                    filePath: fileOfInterest,
+                    access: { kind: "PublicFunctionAccess" },
+                },
+                "parameterType": { kind: "library", name: "HandlerContext", location: "../HandlerContext.ts" },
+                "parameterName": "context",
+                populateInTests: {
+                    dummyValue: "{}",
+                },
+            });
+
+            printStructureOfFile(input, fileOfInterest)
+                .then(() => TypescriptEditing.changesetForRequirement(input, original)
+                    .then(cs => cs.requirements)) // in the same changeset
+                .then(consequences => {
+                    const amr = consequences.find(c => isAddMigrationRequirement(c));
+                    assert(amr);
+                })
+                .then(() => done(), done);
+        })
+    })
 
     describe("properties of enclosing functions", () => {
 
@@ -395,7 +432,7 @@ describe("detection of consequences", () => {
             });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
+                .then(() => TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     assert(consequences.some(c => {
@@ -422,7 +459,7 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
+                .then(() => TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: TypescriptEditing.AddParameterRequirement = consequences.find(c =>
@@ -457,7 +494,7 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
+                .then(() => TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: TypescriptEditing.AddParameterRequirement = consequences.find(c =>
@@ -492,7 +529,7 @@ describe("detection of consequences", () => {
                 });
 
             printStructureOfFile(input, fileOfInterest)
-                .then(() =>   TypescriptEditing.changesetForRequirement(input, original)
+                .then(() => TypescriptEditing.changesetForRequirement(input, original)
                     .then(allRequirements))
                 .then(consequences => {
                     const consequenceOfInterest: TypescriptEditing.AddParameterRequirement = consequences.find(c =>
@@ -884,8 +921,8 @@ describe("Adding a parameter", () => {
     it("Adds an import file too", done => {
         const input = copyOfBefore();
         TypescriptEditing.implement(input, addParameterRequirement({
-                name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
-            })).then(changed => input.flush().then(() => changed))
+            name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
+        })).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 assert(after.includes(

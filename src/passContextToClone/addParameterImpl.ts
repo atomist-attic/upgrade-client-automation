@@ -22,6 +22,7 @@ import * as _ from "lodash";
 
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import FunctionCallIdentifier = TypescriptEditing.FunctionCallIdentifier;
+import { AddMigrationRequirement } from "./AddMigrationRequirement";
 
 export function functionCallIdentifierFromTreeNode(functionDeclaration: TreeNode): FunctionCallIdentifier {
     const filePath = (functionDeclaration as LocatedTreeNode).sourceLocation.path;
@@ -309,8 +310,10 @@ export function findConsequencesOfAddParameter(project: Project, requirement: Ty
     logger.info("Looking for calls in : " + callWithinFunction);
     logger.info("looking in: " + TypescriptEditing.globFromAccess(requirement.functionWithAdditionalParameter));
 
-    const globalConsequences = TypescriptEditing.isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
+    const testConsequences = TypescriptEditing.isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
         concomitantChange(passDummyInTests) : emptyConsequences;
+    const externalConsequences = concomitantChange(new AddMigrationRequirement(requirement, requirement));
+    const globalConsequences = combineConsequences(testConsequences, externalConsequences);
 
     // in source, either find a parameter that fits, or receive it.
     return findMatches(project, TypeScriptES6FileParser, TypescriptEditing.globFromAccess(requirement.functionWithAdditionalParameter),
