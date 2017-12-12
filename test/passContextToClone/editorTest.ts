@@ -38,7 +38,10 @@ import {
     isAddParameterRequirement,
 } from "../../src/passContextToClone/AddParameterRequirement";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
-import { FunctionCallIdentifier } from "../../src/passContextToClone/functionCallIdentifier";
+import {
+    FunctionCallIdentifier, isPublicFunctionAccess,
+    isPublicMethodAccess,
+} from "../../src/passContextToClone/functionCallIdentifier";
 import {
     isPassArgumentRequirement,
     PassArgumentRequirement,
@@ -53,6 +56,10 @@ import {
     sameRequirement,
 } from "../../src/passContextToClone/TypescriptEditing";
 import { LibraryImport } from "../../src/passContextToClone/addImport";
+import {
+    functionCallIdentifierFromProject,
+    methodInClass,
+} from "../../src/passContextToClone/functionCallIdentifierFromProject";
 
 function addParameterRequirement(fci: Partial<FunctionCallIdentifier>): AddParameterRequirement {
     const fullFci: FunctionCallIdentifier = {
@@ -445,7 +452,7 @@ describe("detection of consequences", () => {
                 .then(() => done(), done);
         });
 
-        it("Does not produce a migration for a private function", done => {
+        it("Does not request a migration for a private function", done => {
             const fileOfInterest = "src/thinger.ts";
             const input = InMemoryProject.of({
                 path: fileOfInterest, content: `
@@ -482,9 +489,87 @@ describe("detection of consequences", () => {
 
         it("Locates the import path for the downstream project to use");
 
-        it("Produces a migration for a public method in a public class");
+        it("Requests a migration for a public method in a public class",  done => {
+            const fileOfInterest = "src/Classy.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
+class Classy {
+    public thinger() {
+       return "something about your context";
+    }
+}\n`,
+            });
+            functionCallIdentifierFromProject(input,
+                fileOfInterest, methodInClass("Classy", "thinger"))
+                .then(functionOfInterest => {
 
-        it("Does not produce a migration for a private method");
+                    assert(isPublicMethodAccess(functionOfInterest.access), stringify(functionOfInterest));
+
+                    const original: Requirement = new AddParameterRequirement({
+                        functionWithAdditionalParameter: functionOfInterest,
+                        parameterType: {
+                            kind: "local", name: "HandlerContext", localPath: "../HandlerContext.ts",
+                            externalPath: "@atomist/automation-client",
+                        },
+                        parameterName: "context",
+                        populateInTests: {
+                            dummyValue: "{}",
+                        },
+                    });
+
+                    return changesetForRequirement(input, original)
+                        .then(cs => cs.requirements) // in the same changeset
+                        .then(consequences =>  {
+                            const amr = consequences.find(c => isAddMigrationRequirement(c)) as AddMigrationRequirement;
+                            assert(amr);
+
+                            const inner = amr.downstreamRequirement;
+                            assert(isAddParameterRequirement(inner));
+
+                            const apr = inner as AddParameterRequirement;
+                            assert((apr.parameterType as LibraryImport).location === "@atomist/automation-client");
+                        })
+                })
+                .then(() => done(), done);
+
+        });
+
+        it("Does not request a migration for a private method", done => {
+            const fileOfInterest = "src/Classy.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
+class Classy {
+    private thinger() {
+       return "something about your context";
+    }
+}\n`,
+            });
+            functionCallIdentifierFromProject(input,
+                fileOfInterest, methodInClass("Classy", "thinger"))
+                .then(functionOfInterest => {
+
+                    const original: Requirement = new AddParameterRequirement({
+                        functionWithAdditionalParameter: functionOfInterest,
+                        parameterType: {
+                            kind: "local", name: "HandlerContext", localPath: "../HandlerContext.ts",
+                            externalPath: "@atomist/automation-client",
+                        },
+                        parameterName: "context",
+                        populateInTests: {
+                            dummyValue: "{}",
+                        },
+                    });
+
+                    return changesetForRequirement(input, original)
+                        .then(cs => cs.requirements) // in the same changeset
+                        .then(consequences => {
+                            const amr = consequences.find(c => isAddMigrationRequirement(c)) as AddMigrationRequirement;
+                            assert(!amr);
+                        })
+                })
+                .then(() => done(), done);
+
+        });
     });
 
     describe("properties of enclosing functions", () => {

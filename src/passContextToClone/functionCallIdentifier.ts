@@ -4,28 +4,34 @@ import { TreeNode } from "@atomist/tree-path/TreeNode";
 
 export interface FunctionCallIdentifier {
     enclosingScope?: EnclosingScope;
-    name: string; filePath: string;
+    name: string;
+    filePath: string;
     access: Access;
 }
 
 export type PathExpression = string;
 
-export type Access = PublicFunctionAccess | PrivateFunctionAccess | PrivateMethodAccess;
+export type Access = PublicFunctionAccess | PrivateFunctionAccess | PrivateMethodAccess | PublicMethodAccess;
 
 export interface PublicFunctionAccess {
     kind: "PublicFunctionAccess";
-}
-
-export interface PrivateMethodAccess {
-    kind: "PrivateMethodAccess";
 }
 
 export interface PrivateFunctionAccess {
     kind: "PrivateFunctionAccess";
 }
 
-export function isPrivateFunctionAccess(scope: Access): scope is PrivateFunctionAccess {
-    return scope.kind === "PrivateFunctionAccess";
+export interface PublicMethodAccess {
+    kind: "PublicMethodAccess";
+}
+
+export interface PrivateMethodAccess {
+    kind: "PrivateMethodAccess";
+}
+
+
+export function isPublicMethodAccess(scope: Access): scope is PublicMethodAccess {
+    return scope.kind === "PublicMethodAccess";
 }
 
 export function isPublicFunctionAccess(scope: Access): scope is PublicFunctionAccess {
@@ -126,11 +132,11 @@ export function functionCallPathExpression(fn: FunctionCallIdentifier) {
 }
 
 function propertyAccessExpression(s: EnclosingScope, soFar: string): string {
-        if (s === undefined) {
-                return soFar;
-            }
-        return propertyAccessExpression(s.enclosingScope, s.name + "." + soFar);
+    if (s === undefined) {
+        return soFar;
     }
+    return propertyAccessExpression(s.enclosingScope, s.name + "." + soFar);
+}
 
 export function localFunctionCallPathExpression(name: string): PathExpression {
     return `//CallExpression[/Identifier[@value='${name}']]`;
@@ -182,6 +188,7 @@ export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScop
     }
 }
 
+
 export function functionCallIdentifierFromTreeNode(functionDeclaration: TreeNode): FunctionCallIdentifier {
     const filePath = (functionDeclaration as LocatedTreeNode).sourceLocation.path;
     const enclosingFunctionName = identifier(functionDeclaration);
@@ -197,7 +204,9 @@ function determineAccess(fnDeclaration: TreeNode): Access {
         { kind: "PublicFunctionAccess" } :
         hasKeyword(fnDeclaration, "PrivateKeyword") || hasKeyword(fnDeclaration, "ProtectedKeyword") ?
             { kind: "PrivateMethodAccess" } :
-            { kind: "PrivateFunctionAccess" };
+            hasKeyword(fnDeclaration, "PublicKeyword") ?
+                { kind: "PublicMethodAccess" } :
+                { kind: "PrivateFunctionAccess" };
     return access;
 }
 

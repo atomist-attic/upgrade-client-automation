@@ -16,7 +16,7 @@ import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import {
     FunctionCallIdentifier, functionCallIdentifierFromTreeNode, functionCallPathExpression,
     functionDeclarationPathExpression, globFromAccess,
-    isPublicFunctionAccess, qualifiedName,
+    isPublicFunctionAccess, isPublicMethodAccess, qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
 import { addImport, externalImportLocation, ImportIdentifier, isLibraryImport, LibraryImport } from "./addImport";
@@ -89,6 +89,11 @@ export class AddParameterRequirement extends Requirement {
             populateInTests: this.populateInTests,
         });
     }
+
+    isExternallyFacing() {
+        return isPublicFunctionAccess(this.functionWithAdditionalParameter.access)
+            || isPublicMethodAccess(this.functionWithAdditionalParameter.access)
+    }
 }
 
 export function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
@@ -113,7 +118,7 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
 
     const testConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
         concomitantChange(passDummyInTests) : emptyConsequences;
-    const externalConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
+    const externalConsequences = requirement.isExternallyFacing() ?
         concomitantChange(new AddMigrationRequirement(requirement.downstream(project), requirement))
         : emptyConsequences;
     const globalConsequences = combineConsequences(testConsequences, externalConsequences);
