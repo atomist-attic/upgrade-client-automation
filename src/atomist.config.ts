@@ -16,7 +16,7 @@
 
 import { Configuration } from "@atomist/automation-client/configuration";
 import * as appRoot from "app-root-path";
-import { UpgradeTo0_5 } from "./passContextToClone/command";
+import { UpgradeTo0_5 } from "./typescriptEditing/command";
 import { BeginReleaseHandler } from "./prepareRelease/command";
 
 // tslint:disable-next-line:no-var-requires

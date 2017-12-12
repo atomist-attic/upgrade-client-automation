@@ -1,7 +1,7 @@
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import "mocha";
 import * as assert from "power-assert";
-import { addImport } from "../../src/passContextToClone/addImport";
+import { addImport } from "../../src/typescriptEditing/addImport";
 
 describe("add import", () => {
     it("Adds a name to an existing import", done => {

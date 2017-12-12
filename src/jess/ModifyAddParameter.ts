@@ -11,8 +11,8 @@ import * as _ from "lodash";
 import {
     FunctionCallIdentifier, functionCallIdentifierFromTreeNode, localFunctionCallPathExpression,
     pathExpressionIntoScope,
-} from "../passContextToClone/functionCallIdentifier";
-import * as TypescriptEditing from "../passContextToClone/TypescriptEditing";
+} from "../typescriptEditing/functionCallIdentifier";
+import * as TypescriptEditing from "../typescriptEditing/TypescriptEditing";
 
 /*
  * To run this while working:
