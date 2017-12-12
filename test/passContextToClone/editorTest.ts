@@ -1,14 +1,14 @@
+import { logger } from "@atomist/automation-client";
+import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
+import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
+import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
+import * as appRoot from "app-root-path";
 import * as stringify from "json-stringify-safe";
 import "mocha";
 import * as assert from "power-assert";
-import { logger } from "@atomist/automation-client";
+import { passContextToFunction } from "../../src/passContextToClone/editor";
 import { Changeset, describeChangeset } from "../../src/typescriptEditing/Changeset";
 import { Report } from "../../src/typescriptEditing/Report";
-import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
-import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
-import { passContextToFunction } from "../../src/passContextToClone/editor";
-import * as appRoot from "app-root-path";
-import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 
 describe("editor to pass the context into the cloned method", () => {
     it("sends a dummy context into tests, with just enough populated", done => {
@@ -87,7 +87,6 @@ describe("editor to pass the context into the cloned method", () => {
 
 });
 
-
 function getAllMatches(r: RegExp, s: string): string[] {
     if (r.flags.indexOf("g") < 0) {
         throw new Error("This is useless without a global regexp");
@@ -99,7 +98,6 @@ function getAllMatches(r: RegExp, s: string): string[] {
     }
     return output;
 }
-
 
 describe("actually run it", () => {
 
@@ -139,5 +137,5 @@ describe("actually run it", () => {
                 logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));
             })
             .then(() => done(), done);
-    })//.timeout(1000000);
+    });//.timeout(1000000);
 });

@@ -1,7 +1,7 @@
 
-import { AddParameterRequirement } from "../typescriptEditing/AddParameterRequirement";
-import { ImportIdentifier } from "../typescriptEditing/addImport";
 import { Project } from "@atomist/automation-client/project/Project";
+import { ImportIdentifier } from "../typescriptEditing/addImport";
+import { AddParameterRequirement } from "../typescriptEditing/AddParameterRequirement";
 import { addParameterEdit, MySpecialEditReport, PerChangesetFunction } from "../typescriptEditing/editor";
 import { FunctionCallIdentifier } from "../typescriptEditing/functionCallIdentifier";
 
@@ -26,6 +26,6 @@ export function passContextToFunction(params: FunctionCallIdentifier,
             why: "I want to use the context in here",
         });
 
-        return addParameterEdit(originalRequirement, betweenChangesets)(p)
-    }
+        return addParameterEdit(originalRequirement, betweenChangesets)(p);
+    };
 }

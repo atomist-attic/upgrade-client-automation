@@ -29,7 +29,6 @@ export interface PrivateMethodAccess {
     kind: "PrivateMethodAccess";
 }
 
-
 export function isPublicMethodAccess(scope: Access): scope is PublicMethodAccess {
     return scope.kind === "PublicMethodAccess";
 }
@@ -187,7 +186,6 @@ export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScop
         }
     }
 }
-
 
 export function functionCallIdentifierFromTreeNode(functionDeclaration: TreeNode): FunctionCallIdentifier {
     const filePath = (functionDeclaration as LocatedTreeNode).sourceLocation.path;

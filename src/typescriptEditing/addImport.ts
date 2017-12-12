@@ -5,7 +5,6 @@ import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import * as path from "path";
 
-
 export type ImportIdentifier = LibraryImport | LocalImport | BuiltIn;
 
 export interface LibraryImport {
@@ -23,7 +22,7 @@ export interface LocalImport {
 
 export interface BuiltIn {
     kind: "built-in";
-    name: string
+    name: string;
 }
 
 export function isLibraryImport(i: ImportIdentifier): i is LibraryImport {
@@ -41,7 +40,6 @@ export function isBuiltIn(i: ImportIdentifier): i is BuiltIn {
 export function externalImportLocation(project: Project, localPath: string) {
     return "";
 }
-
 
 function calculateRelativePath(from: string, to: string) {
     const relativePath = path.relative(from, to);
@@ -103,4 +101,3 @@ function requireExactlyOne(m: MatchResult[], msg: string): MatchResult {
     }
     return m[0];
 }
-

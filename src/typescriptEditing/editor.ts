@@ -31,7 +31,6 @@ export interface MySpecialEditReport extends EditResult {
 export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>;
 const doNothing = () => Promise.resolve();
 
-
 export function addParameterEdit(originalRequirement: AddParameterRequirement,
                                  betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
 
@@ -59,8 +58,6 @@ export function addParameterEdit(originalRequirement: AddParameterRequirement,
             });
     };
 }
-
-
 
 /*
  * return an ordered list of changesets, such that each changeset

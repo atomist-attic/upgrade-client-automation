@@ -5,13 +5,13 @@ import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import * as _ from "lodash";
+import { addImport, ImportIdentifier } from "./addImport";
 import {
     FunctionCallIdentifier,
     functionCallPathExpression,
     qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
-import { addImport, ImportIdentifier } from "./addImport";
 import { Requirement } from "./TypescriptEditing";
 
 export class PassDummyInTestsRequirement extends Requirement {

@@ -29,6 +29,7 @@ import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typ
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 import * as appRoot from "app-root-path";
 import * as _ from "lodash";
+import { LibraryImport } from "../../src/typescriptEditing/addImport";
 import {
     AddMigrationRequirement,
     isAddMigrationRequirement,
@@ -43,6 +44,10 @@ import {
     isPublicMethodAccess,
 } from "../../src/typescriptEditing/functionCallIdentifier";
 import {
+    functionCallIdentifierFromProject,
+    methodInClass, topLevelFunction,
+} from "../../src/typescriptEditing/functionCallIdentifierFromProject";
+import {
     isPassArgumentRequirement,
     PassArgumentRequirement,
 } from "../../src/typescriptEditing/PassArgumentRequirement";
@@ -55,11 +60,6 @@ import {
     changesetForRequirement, implement, Requirement,
     sameRequirement,
 } from "../../src/typescriptEditing/TypescriptEditing";
-import { LibraryImport } from "../../src/typescriptEditing/addImport";
-import {
-    functionCallIdentifierFromProject,
-    methodInClass, topLevelFunction,
-} from "../../src/typescriptEditing/functionCallIdentifierFromProject";
 
 function addParameterRequirement(fci: Partial<FunctionCallIdentifier>): AddParameterRequirement {
     const fullFci: FunctionCallIdentifier = {
@@ -75,8 +75,6 @@ function addParameterRequirement(fci: Partial<FunctionCallIdentifier>): AddParam
         },
     });
 }
-
-
 
 describe("detection of consequences", () => {
 
@@ -440,7 +438,7 @@ class Classy {
 
                             const apr = inner as AddParameterRequirement;
                             assert((apr.parameterType as LibraryImport).location === "@atomist/automation-client");
-                        })
+                        });
                 })
                 .then(() => done(), done);
 
@@ -477,7 +475,7 @@ class Classy {
                         .then(consequences => {
                             const amr = consequences.find(c => isAddMigrationRequirement(c)) as AddMigrationRequirement;
                             assert(!amr);
-                        })
+                        });
                 })
                 .then(() => done(), done);
 
@@ -1028,15 +1026,15 @@ describe("actually run it", () => {
                 functionWithAdditionalParameter: functionOfInterest,
                 parameterName: "token",
                 parameterType: { kind: "built-in", name: "string"},
-                why: "so I can get file contents from github"
+                why: "so I can get file contents from github",
             });
 
             return addParameterEdit(originalRequirement, commitDangit)(realProject)
                 .then(report => {
                     logger.info("implemented: " + stringify(report.addParameterReport.implemented, null, 1));
                     logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));
-                })
+                });
         })
             .then(() => done(), done);
-    }) //.timeout(1000000);
+    }); //.timeout(1000000);
 });

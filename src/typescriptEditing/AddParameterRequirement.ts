@@ -14,15 +14,15 @@ import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode
 import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
 import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import {
+    addImport, BuiltIn, externalImportLocation, ImportIdentifier, isBuiltIn, isLibraryImport,
+    LibraryImport,
+} from "./addImport";
+import {
     FunctionCallIdentifier, functionCallIdentifierFromTreeNode, functionCallPathExpression,
     functionDeclarationPathExpression, globFromAccess,
     isPublicFunctionAccess, isPublicMethodAccess, qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
-import {
-    addImport, BuiltIn, externalImportLocation, ImportIdentifier, isBuiltIn, isLibraryImport,
-    LibraryImport,
-} from "./addImport";
 import { PassArgumentRequirement } from "./PassArgumentRequirement";
 import { PassDummyInTestsRequirement } from "./PassDummyInTestRequirement";
 import { Report, reportImplemented, reportUnimplemented } from "./Report";
@@ -93,9 +93,9 @@ export class AddParameterRequirement extends Requirement {
         });
     }
 
-    isExternallyFacing() {
+    public isExternallyFacing() {
         return isPublicFunctionAccess(this.functionWithAdditionalParameter.access)
-            || isPublicMethodAccess(this.functionWithAdditionalParameter.access)
+            || isPublicMethodAccess(this.functionWithAdditionalParameter.access);
     }
 }
 
@@ -135,7 +135,6 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
             return combineConsequences(srcConsequences, globalConsequences);
         });
 }
-
 
 export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
                                            enclosingFunction: MatchResult): Consequences {
