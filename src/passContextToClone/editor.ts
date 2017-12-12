@@ -13,27 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Project } from "@atomist/automation-client/project/Project";
 import { HandlerContext, logger } from "@atomist/automation-client";
-import * as _ from "lodash";
 import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
-import { AddImport } from "./manipulateImports";
+import { Project } from "@atomist/automation-client/project/Project";
 import * as stringify from "json-stringify-safe";
+import * as _ from "lodash";
+import { AddImport } from "./manipulateImports";
 
-import * as TypescriptEditing from "./TypescriptEditing";
-import { combine, emptyReport, Report } from "./Report";
+import { AddParameterRequirement } from "./AddParameterRequirement";
 import { Changeset, describeChangeset } from "./Changeset";
 import { FunctionCallIdentifier } from "./functionCallIdentifier";
-import { AddParameterRequirement } from "./AddParameterRequirement";
-
-
+import { combine, emptyReport, Report } from "./Report";
+import * as TypescriptEditing from "./TypescriptEditing";
 
 export interface MySpecialEditReport extends EditResult {
-    addParameterReport: Report
+    addParameterReport: Report;
 }
 
-
-export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>
+export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>;
 const doNothing = () => Promise.resolve();
 
 export function passContextToFunction(params: FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
@@ -64,7 +61,7 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenCha
             .then(changesets => {
                 logger.info("implementing " + changesets.length + " changesets: ");
                 changesets.map(describeChangeset).forEach(s => logger.info(s));
-                return changesets
+                return changesets;
             })
             .then(changesets =>
                 implementChangesets(p, changesets, betweenChangesets))
@@ -73,9 +70,9 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenCha
                 return {
                     ...successfulEdit(p, report.implemented.length > 0),
                     addParameterReport: report,
-                }
+                };
             });
-    }
+    };
 }
 
 /*
@@ -87,16 +84,15 @@ function linearizeChangesets(top: Changeset): Changeset[] {
         return [top];
     } else {
         const beforeMe = _.flatMap(top.prerequisites, linearizeChangesets);
-        return beforeMe.concat([top])
+        return beforeMe.concat([top]);
     }
 }
-
 
 function implementInSequenceWithFlushes(project: Project, activities: TypescriptEditing.Requirement[]) {
     return activities.reduce(
         (pp: Promise<Report>, r1: TypescriptEditing.Requirement) => pp
             .then(allTheReportsFromBefore => TypescriptEditing.implement(project, r1)
-                .then((report1) => project.flush()
+                .then( report1 => project.flush()
                     .then(() => combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(emptyReport));
 }
@@ -107,8 +103,7 @@ function implementChangesets(project: Project, activities: Changeset[],
         (pp: Promise<Report>, c1: Changeset) =>
             pp.then(allTheReportsFromBefore =>
                 implementInSequenceWithFlushes(project, c1.requirements)
-                    .then((report1) => betweenChangesets(c1, report1)
+                    .then( report1 => betweenChangesets(c1, report1)
                         .then(() => combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(emptyReport));
 }
-

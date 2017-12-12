@@ -14,7 +14,7 @@ export function exportedAndHasContextAlready(context: HandlerContext, moreStuff:
 
 function doesNotYetHaveContext(context: HandlerContext, thing: string) {
     logger.info("stuff");
-    const booger = InHere.giveMeYourContext(context, "yeah")
+    const booger = InHere.giveMeYourContext(context, "yeah");
     return booger.toString();
 }
 
@@ -23,7 +23,7 @@ function hasContextAlready(ctx: HandlerContext, moreStuff: string) {
     return InHere.giveMeYourContext(ctx, {});
 }
 
-export function exportedDoesNotYetHaveContext(context: HandlerContext, ) {
+export function exportedDoesNotYetHaveContext(context: HandlerContext ) {
     logger.info("stuff");
     const alsoItCallsItTwice = InHere.giveMeYourContext(context, {});
     logger.info("stuff");
@@ -36,6 +36,6 @@ function usesAFunctionThatDoesNotHaveContext(ctx: HandlerContext, blahblah: stri
 }
 
 export function usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext(context: HandlerContext, hoodehoo: string) {
-    const bar = exportedDoesNotYetHaveContext(context, );
+    const bar = exportedDoesNotYetHaveContext(context );
     return "no";
 }

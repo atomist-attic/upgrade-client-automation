@@ -1,16 +1,16 @@
 import { AddMigrationRequirement } from "./AddMigrationRequirement";
 import { Requirement } from "./TypescriptEditing";
 
-
-import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
+import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { combineConsequences, concomitantChange, Consequences, emptyConsequences } from "./Consequences";
 
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 
-import { Project } from "@atomist/automation-client/project/Project";
 import { logger } from "@atomist/automation-client";
-import { AddImport } from "./manipulateImports";
+import { Project } from "@atomist/automation-client/project/Project";
+import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
+import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
 import { isSuccessResult } from "@atomist/tree-path/path/pathExpression";
 import {
@@ -19,12 +19,10 @@ import {
     isPublicFunctionAccess, qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
-import { Report, reportImplemented, reportUnimplemented } from "./Report";
-import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
-import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
+import { AddImport } from "./manipulateImports";
 import { PassArgumentRequirement } from "./PassArgumentRequirement";
 import { PassDummyInTestsRequirement } from "./PassDummyInTestRequirement";
-
+import { Report, reportImplemented, reportUnimplemented } from "./Report";
 
 export class AddParameterRequirement extends Requirement {
     public readonly kind: "Add Parameter" = "Add Parameter";
@@ -45,7 +43,7 @@ export class AddParameterRequirement extends Requirement {
             dummyValue: string;
             additionalImport?: AddImport.ImportIdentifier;
         },
-        why?: any
+        why?: any,
     }) {
         super(params.why);
         this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
@@ -57,12 +55,12 @@ export class AddParameterRequirement extends Requirement {
     public sameRequirement(other: Requirement): boolean {
         return isAddParameterRequirement(other) &&
             sameFunctionCallIdentifier(this.functionWithAdditionalParameter, other.functionWithAdditionalParameter) &&
-            this.parameterName === other.parameterName
+            this.parameterName === other.parameterName;
     }
 
     public describe() {
         const r = this;
-        return `Add parameter "${r.parameterName}: ${r.parameterType.name}" to ${qualifiedName(r.functionWithAdditionalParameter)}`
+        return `Add parameter "${r.parameterName}: ${r.parameterType.name}" to ${qualifiedName(r.functionWithAdditionalParameter)}`;
     }
 
     public findConsequences(project: Project) {
@@ -74,11 +72,9 @@ export class AddParameterRequirement extends Requirement {
     }
 }
 
-
 export function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
     return r.kind === "Add Parameter";
 }
-
 
 function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Consequences> {
     const passDummyInTests: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
@@ -111,7 +107,6 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
             return combineConsequences(srcConsequences, testConsequences);
         });
 }
-
 
 export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
                                            enclosingFunction: MatchResult): Consequences {
@@ -160,18 +155,12 @@ export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
     }
 }
 
-
-
-
-
-
-
 function implementAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
     return AddImport.addImport(project,
         requirement.functionWithAdditionalParameter.filePath,
         requirement.parameterType)
         .then(importAdded => {
-            logger.info("Exercising path expression: " + functionDeclarationPathExpression(requirement.functionWithAdditionalParameter))
+            logger.info("Exercising path expression: " + functionDeclarationPathExpression(requirement.functionWithAdditionalParameter));
             return findMatches(project, TypeScriptES6FileParser, requirement.functionWithAdditionalParameter.filePath,
                 functionDeclarationPathExpression(requirement.functionWithAdditionalParameter))
                 .then(matches => {
@@ -182,7 +171,7 @@ function implementAddParameter(project: Project, requirement: AddParameterRequir
                         return reportUnimplemented(requirement, "Function declaration not found");
                     } else if (1 < matches.length) {
                         logger.warn("Doing Nothing; Found more than one function declaration at " + functionDeclarationPathExpression(requirement.functionWithAdditionalParameter));
-                        return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.")
+                        return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.");
                     } else {
                         const functionDeclaration = matches[0];
                         const openParen = requireExactlyOne(functionDeclaration.evaluateExpression("/OpenParenToken"),
@@ -191,20 +180,19 @@ function implementAddParameter(project: Project, requirement: AddParameterRequir
                         openParen.$value = `(${requirement.parameterName}: ${requirement.parameterType.name}, `;
                         return reportImplemented(requirement);
                     }
-                })
+                });
         });
 }
 
-
 function requireExactlyOne<A>(m: TreeNode[], msg: string): TreeNode {
     if (!m || m.length != 1) {
-        throw new Error(msg)
+        throw new Error(msg);
     }
     return m[0];
 }
 
 function identifier(parent: TreeNode): string {
-    return childrenNamed(parent, "Identifier")[0].$value
+    return childrenNamed(parent, "Identifier")[0].$value;
 }
 
 function childrenNamed(parent: TreeNode, name: string) {

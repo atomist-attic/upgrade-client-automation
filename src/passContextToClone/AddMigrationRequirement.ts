@@ -1,5 +1,4 @@
 
-
 import { Requirement } from "./TypescriptEditing";
 
 export class AddMigrationRequirement extends Requirement {

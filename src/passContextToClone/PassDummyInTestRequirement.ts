@@ -1,7 +1,9 @@
 import { Project } from "@atomist/automation-client/project/Project";
 import { emptyReport, Report, reportImplemented } from "./Report";
 
-import { AddImport } from "./manipulateImports";
+import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
+import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
+import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import * as _ from "lodash";
 import {
     FunctionCallIdentifier,
@@ -9,11 +11,8 @@ import {
     qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
+import { AddImport } from "./manipulateImports";
 import { Requirement } from "./TypescriptEditing";
-import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
-import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
-import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
-
 
 export class PassDummyInTestsRequirement extends Requirement {
     public readonly kind: "Pass Dummy In Tests" = "Pass Dummy In Tests";
@@ -26,7 +25,7 @@ export class PassDummyInTestsRequirement extends Requirement {
         functionWithAdditionalParameter: FunctionCallIdentifier,
         dummyValue: string,
         additionalImport?: AddImport.ImportIdentifier,
-        why?: any
+        why?: any,
     }) {
         super(params.why);
         this.functionWithAdditionalParameter = params.functionWithAdditionalParameter;
@@ -36,11 +35,11 @@ export class PassDummyInTestsRequirement extends Requirement {
 
     public sameRequirement(other: Requirement): boolean {
         return isPassDummyInTests(other) &&
-            sameFunctionCallIdentifier(this.functionWithAdditionalParameter, other.functionWithAdditionalParameter)
+            sameFunctionCallIdentifier(this.functionWithAdditionalParameter, other.functionWithAdditionalParameter);
     }
 
     public describe() {
-        return `Pass dummy value to ${qualifiedName(this.functionWithAdditionalParameter)} in tests`
+        return `Pass dummy value to ${qualifiedName(this.functionWithAdditionalParameter)} in tests`;
     }
 
     public implement(project: Project) {
@@ -48,12 +47,9 @@ export class PassDummyInTestsRequirement extends Requirement {
     }
 }
 
-
 export function isPassDummyInTests(r: Requirement): r is PassDummyInTestsRequirement {
     return r.kind === "Pass Dummy In Tests";
 }
-
-
 
 /*
 * Implementation: find all the calls in the test sources and pass a dummy argument
@@ -79,15 +75,14 @@ function passDummyInTests(project: Project, requirement: PassDummyInTestsRequire
         .then(filesChanged => project.flush().then(() => filesChanged))
         .then(filesChanged => {
             if (filesChanged.length === 0) {
-                return emptyReport
+                return emptyReport;
             } else {
                 const addImportTo = requirement.additionalImport ? filesChanged : [];
                 return Promise.all(addImportTo
                     .map(f => {
-                        return AddImport.addImport(project, f, requirement.additionalImport)
+                        return AddImport.addImport(project, f, requirement.additionalImport);
                     }))
                     .then(() => reportImplemented(requirement));
             }
-        })
+        });
 }
-

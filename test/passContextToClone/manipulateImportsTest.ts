@@ -1,6 +1,6 @@
+import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import "mocha";
 import * as assert from "power-assert";
-import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import { AddImport } from "../../src/passContextToClone/manipulateImports";
 
 describe("add import", () => {
@@ -19,8 +19,8 @@ const blah = "blah"
 
                 const after = input.findFileSync("src/Whatever.ts").getContentSync();
                 assert(after.includes(`import { HandlerContext, Stuff } from "@atomist/automation-client"`), after);
-                assert(changed)
-            }).then(() => done(), done)
+                assert(changed);
+            }).then(() => done(), done);
     });
 
     describe("relative import", () => {
@@ -35,9 +35,9 @@ const blah = "blah"
                 .then(() => {
                    const after = input.findFileSync(fileOfInterest).getContentSync();
 
-                   assert(after.includes(`import { HandlerContext } from "./HandlerContext";\n`), after)
+                   assert(after.includes(`import { HandlerContext } from "./HandlerContext";\n`), after);
                 })
-                .then(() => done(), done)
+                .then(() => done(), done);
 
         });
 
@@ -52,9 +52,9 @@ const blah = "blah"
                 .then(() => {
                     const after = input.findFileSync(fileOfInterest).getContentSync();
 
-                    assert(after.includes(`import { HandlerContext } from "../../src/HandlerContext";\n`), after)
+                    assert(after.includes(`import { HandlerContext } from "../../src/HandlerContext";\n`), after);
                 })
-                .then(() => done(), done)
+                .then(() => done(), done);
 
         });
     });

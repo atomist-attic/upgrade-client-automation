@@ -16,8 +16,8 @@
 
 import { Configuration } from "@atomist/automation-client/configuration";
 import * as appRoot from "app-root-path";
-import { BeginReleaseHandler } from "./prepareRelease/command";
 import { UpgradeTo0_5 } from "./passContextToClone/command";
+import { BeginReleaseHandler } from "./prepareRelease/command";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);

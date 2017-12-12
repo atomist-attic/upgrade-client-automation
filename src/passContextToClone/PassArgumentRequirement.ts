@@ -1,17 +1,16 @@
 
-
+import { logger } from "@atomist/automation-client";
+import { Project } from "@atomist/automation-client/project/Project";
+import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
+import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
+import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
+import stringify = require("json-stringify-safe");
 import {
     FunctionCallIdentifier, functionCallPathExpression, functionDeclarationPathExpression, qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
-import { Requirement } from "./TypescriptEditing";
-import { Project } from "@atomist/automation-client/project/Project";
-import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
-import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
-import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
-import { logger } from "@atomist/automation-client";
-import stringify = require("json-stringify-safe");
 import { Report, reportImplemented, reportUnimplemented } from "./Report";
+import { Requirement } from "./TypescriptEditing";
 
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 
@@ -26,7 +25,7 @@ export class PassArgumentRequirement extends Requirement {
         enclosingFunction: FunctionCallIdentifier,
         functionWithAdditionalParameter: FunctionCallIdentifier,
         argumentValue: string,
-        why?: any
+        why?: any,
     }) {
         super(params.why);
         this.enclosingFunction = params.enclosingFunction;
@@ -37,12 +36,12 @@ export class PassArgumentRequirement extends Requirement {
     public sameRequirement(other: Requirement): boolean {
         return isPassArgumentRequirement(other) &&
             sameFunctionCallIdentifier(this.functionWithAdditionalParameter, other.functionWithAdditionalParameter) &&
-            sameFunctionCallIdentifier(this.enclosingFunction, other.enclosingFunction)
+            sameFunctionCallIdentifier(this.enclosingFunction, other.enclosingFunction);
     }
 
     public describe() {
         const r = this;
-        return `Pass argument "${r.argumentValue}" to ${qualifiedName(r.functionWithAdditionalParameter)} in ${qualifiedName(r.enclosingFunction)}`
+        return `Pass argument "${r.argumentValue}" to ${qualifiedName(r.functionWithAdditionalParameter)} in ${qualifiedName(r.enclosingFunction)}`;
     }
 
     public implement(project: Project) {
@@ -59,11 +58,11 @@ function passArgument(project: Project, requirement: PassArgumentRequirement): P
         TypeScriptES6FileParser,
         requirement.enclosingFunction.filePath,
         fullPathExpression)
-        .then(mm => applyPassArgument({ matches: mm, requirement: requirement }));
+        .then(mm => applyPassArgument({ matches: mm, requirement }));
 }
 
 function applyPassArgument(parameters: { matches: MatchResult[], requirement: PassArgumentRequirement }): Report {
-    let { matches, requirement } = parameters;
+    const { matches, requirement } = parameters;
     if (matches.length === 0) {
         logger.warn("No matches on " + stringify(requirement));
         return reportUnimplemented(requirement, "Function not found");
@@ -77,14 +76,12 @@ function applyPassArgument(parameters: { matches: MatchResult[], requirement: Pa
     }
 }
 
-
 function requireExactlyOne(m: TreeNode[], msg: string): TreeNode {
     if (!m || m.length != 1) {
-        throw new Error(msg)
+        throw new Error(msg);
     }
     return m[0];
 }
-
 
 export function isPassArgumentRequirement(r: Requirement): r is PassArgumentRequirement {
     return r.kind === "Pass Argument";

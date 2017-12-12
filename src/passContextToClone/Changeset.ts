@@ -1,10 +1,9 @@
 import * as TypescriptEditing from "./TypescriptEditing";
 
-
 export interface Changeset {
-    titleRequirement: TypescriptEditing.Requirement,
-    requirements: TypescriptEditing.Requirement[],
-    prerequisites: Changeset[],
+    titleRequirement: TypescriptEditing.Requirement;
+    requirements: TypescriptEditing.Requirement[];
+    prerequisites: Changeset[];
 }
 
 export function describeChangeset(cs: Changeset): string {

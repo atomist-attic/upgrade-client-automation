@@ -14,33 +14,32 @@
  * limitations under the License.
  */
 
+import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
+import * as stringify from "json-stringify-safe";
 import "mocha";
 import * as assert from "power-assert";
-import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import { passContextToFunction } from "../../src/passContextToClone/editor";
-import * as stringify from "json-stringify-safe";
 
-import * as appRoot from "app-root-path";
+import { logger } from "@atomist/automation-client";
+import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
 import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
+import { Project } from "@atomist/automation-client/project/Project";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
+import * as appRoot from "app-root-path";
 import * as _ from "lodash";
-import { Project } from "@atomist/automation-client/project/Project";
-import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
-import { logger } from "@atomist/automation-client";
-import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
-import { Report } from "../../src/passContextToClone/Report";
-import { isAddMigrationRequirement } from "../../src/passContextToClone/AddMigrationRequirement";
-import { FunctionCallIdentifier } from "../../src/passContextToClone/functionCallIdentifier";
+import {
+    AddMigrationRequirement,
+    isAddMigrationRequirement,
+} from "../../src/passContextToClone/AddMigrationRequirement";
 import {
     AddParameterRequirement,
     isAddParameterRequirement,
 } from "../../src/passContextToClone/AddParameterRequirement";
-import {
-    changesetForRequirement, implement, Requirement,
-    sameRequirement,
-} from "../../src/passContextToClone/TypescriptEditing";
+import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
+import { FunctionCallIdentifier } from "../../src/passContextToClone/functionCallIdentifier";
+import { AddImport } from "../../src/passContextToClone/manipulateImports";
 import {
     isPassArgumentRequirement,
     PassArgumentRequirement,
@@ -49,17 +48,22 @@ import {
     isPassDummyInTests,
     PassDummyInTestsRequirement,
 } from "../../src/passContextToClone/PassDummyInTestRequirement";
-
+import { Report } from "../../src/passContextToClone/Report";
+import {
+    changesetForRequirement, implement, Requirement,
+    sameRequirement,
+} from "../../src/passContextToClone/TypescriptEditing";
+import LibraryImport = AddImport.LibraryImport;
 
 function addParameterRequirement(fci: Partial<FunctionCallIdentifier>): AddParameterRequirement {
     const fullFci: FunctionCallIdentifier = {
         access: { kind: "PublicFunctionAccess" },
-        ...fci
+        ...fci,
     } as FunctionCallIdentifier;
     return new AddParameterRequirement({
-        "functionWithAdditionalParameter": fullFci,
-        "parameterType": { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
-        "parameterName": "context",
+        functionWithAdditionalParameter: fullFci,
+        parameterType: { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" },
+        parameterName: "context",
         populateInTests: {
             dummyValue: "{}",
         },
@@ -68,12 +72,12 @@ function addParameterRequirement(fci: Partial<FunctionCallIdentifier>): AddParam
 
 function getAllMatches(r: RegExp, s: string): string[] {
     if (r.flags.indexOf("g") < 0) {
-        throw new Error("This is useless without a global regexp")
+        throw new Error("This is useless without a global regexp");
     }
     const output = [];
     let m;
     while (m = r.exec(s)) {
-        output.push(m[0])
+        output.push(m[0]);
     }
     return output;
 }
@@ -133,7 +137,7 @@ describe("editor to pass the context into the cloned method", () => {
                 const modified = mutableProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 const expected = resultProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
 
-                console.log(modified);
+                logger.info(modified);
                 assert(modified.includes("import { HandlerContext"), "needs the import");
                 assert(modified.includes("andEvenMoreStuff(context: HandlerContext"), "adds parameter");
                 assert(modified.includes("usesAFunctionThatDoesNotHaveContextAndDoesNotHaveContext(context"),
@@ -144,7 +148,7 @@ describe("editor to pass the context into the cloned method", () => {
                 const modified = mutableProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
-                console.log(modified);
+                logger.info(modified);
                 assert.equal(report.addParameterReport.unimplemented.length, 0,
                     stringify(report.addParameterReport.unimplemented, null, 2));
                 assert.equal(report.addParameterReport.implemented.length, 12,
@@ -175,7 +179,7 @@ describe("detection of consequences", () => {
         }
 
         function privateFunciton(s: string) {
-           console.log("give me your context! I need it!");
+           logger.info("give me your context! I need it!");
         }\n`,
                 },
                 {
@@ -186,7 +190,7 @@ describe("detection of consequences", () => {
         }
 
         function privateFunciton(s: string) {
-           console.log("give me your context! I need it!");
+           logger.info("give me your context! I need it!");
         }\n`,
                 },
             );
@@ -221,7 +225,7 @@ describe("detection of consequences", () => {
         }
 
         function privateFunciton(s: string) {
-           console.log("give me your context! I need it!");
+           logger.info("give me your context! I need it!");
         }\n`,
                 },
             );
@@ -255,9 +259,9 @@ describe("detection of consequences", () => {
         export function thinger() {
             return privateFunciton("and stuff");
         }
-        
+
         function privateFunciton(s: string) {
-           console.log("this is mine, it is not changing");
+           logger.info("this is mine, it is not changing");
         }\n`,
                 },
                 {
@@ -266,9 +270,9 @@ describe("detection of consequences", () => {
         export function iShouldChange() {
             return privateFunciton("yarrr");
         }
-        
+
          function privateFunciton(s: string) {
-           console.log("give me your context! I need it!");
+           logger.info("give me your context! I need it!");
         }
 `,
                 },
@@ -333,7 +337,7 @@ describe("detection of consequences", () => {
                 return Spacey.giveMeYourContext("and stuff");
             }
         }
-        
+
         class Clicker {
             protected clickMe() {
                 return Classy.thinger();
@@ -364,11 +368,11 @@ describe("detection of consequences", () => {
             const input = InMemoryProject.of({
                 path: fileOfInterest, content: `
         class Classy {
-        
+
            public otherThinger(params: P, ctx: HandlerContext) {
                return this.thinger();
            }
-           
+
            private thinger() {
                 return Spacey.giveMeYourContext("and stuff");
            }
@@ -392,7 +396,7 @@ describe("detection of consequences", () => {
                         c.functionWithAdditionalParameter.name === "thinger") as PassArgumentRequirement;
                     assert(c,
                         stringify(consequences, null, 2));
-                    assert(c.argumentValue === "ctx")
+                    assert(c.argumentValue === "ctx");
                 })
                 .then(() => done(), done);
         });
@@ -411,13 +415,13 @@ describe("detection of consequences", () => {
             });
 
             const original: Requirement = new AddParameterRequirement({
-                "functionWithAdditionalParameter": {
+                functionWithAdditionalParameter: {
                     name: "thinger",
                     filePath: fileOfInterest,
                     access: { kind: "PublicFunctionAccess" },
                 },
-                "parameterType": { kind: "library", name: "HandlerContext", location: "../HandlerContext.ts" },
-                "parameterName": "context",
+                parameterType: { kind: "library", name: "HandlerContext", location: "../HandlerContext.ts" },
+                parameterName: "context",
                 populateInTests: {
                     dummyValue: "{}",
                 },
@@ -427,12 +431,24 @@ describe("detection of consequences", () => {
                 .then(() => changesetForRequirement(input, original)
                     .then(cs => cs.requirements)) // in the same changeset
                 .then(consequences => {
-                    const amr = consequences.find(c => isAddMigrationRequirement(c));
+                    const amr = consequences.find(c => isAddMigrationRequirement(c)) as AddMigrationRequirement;
                     assert(amr);
+
+                    const inner = amr.downstreamRequirement;
+                    assert(isAddParameterRequirement(inner));
+
+                    const apr = inner as AddParameterRequirement;
+                    assert((apr.parameterType as LibraryImport).location === "@atomist/automation-client");
                 })
                 .then(() => done(), done);
-        })
-    })
+        });
+    });
+
+    it("Does not produce a migration for a private function");
+
+    it("Produces a migration for a public method in a public class");
+
+    it("Does not produce a migration for a private method");
 
     describe("properties of enclosing functions", () => {
 
@@ -457,7 +473,7 @@ describe("detection of consequences", () => {
                     assert(consequences.some(c => {
                         return isAddParameterRequirement(c) && c.functionWithAdditionalParameter.name === "thinger"
                             && c.functionWithAdditionalParameter.access.kind === "PublicFunctionAccess";
-                    }))
+                    }));
                 })
                 .then(() => done(), done);
         });
@@ -494,11 +510,11 @@ describe("detection of consequences", () => {
             const input = InMemoryProject.of({
                 path: fileOfInterest, content: `
         class Classy {
-        
+
            public otherThinger(context: HandlerContext) {
                return this.thinger();
            }
-           
+
            private thinger() {
                 return Spacey.giveMeYourContext("and stuff");
            }
@@ -529,11 +545,11 @@ describe("detection of consequences", () => {
             const input = InMemoryProject.of({
                 path: fileOfInterest, content: `
         class Classy {
-        
+
            public otherThinger(context: HandlerContext) {
                return this.thinger();
            }
-           
+
            protected thinger() {
                 return Spacey.giveMeYourContext("and stuff");
            }
@@ -561,19 +577,18 @@ describe("detection of consequences", () => {
 
     });
 
-
     it("returns the original requirement", done => {
         const input = copyOfBefore();
 
         const original: Requirement = addParameterRequirement({
             name: "exportedDoesNotYetHaveContext",
             filePath: "src/CodeThatUsesIt.ts",
-        },);
+        });
 
         changesetForRequirement(input, original)
             .then(allRequirements)
             .then(consequences => {
-                assert(consequences.some(o => sameRequirement(o, original)))
+                assert(consequences.some(o => sameRequirement(o, original)));
             }).then(() => done(), done);
     });
 
@@ -587,7 +602,7 @@ describe("detection of consequences", () => {
         }))
             .then(allRequirements)
             .then(consequences => {
-                assert.equal(consequences.length, 7, stringify(consequences))
+                assert.equal(consequences.length, 7, stringify(consequences));
             })
             .then(() => done(), done);
     });
@@ -618,11 +633,10 @@ describe("detection of consequences", () => {
 
                 assert.equal(consequences.length,
                     15, // plausible
-                    stringify(consequences, null, 2))
+                    stringify(consequences, null, 2));
             })
             .then(() => done(), done);
     }).timeout(20000);
-
 
     it("helps me out", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
@@ -634,21 +648,19 @@ describe("detection of consequences", () => {
             `/SourceFile`)
             .then(matches => {
                     matches.forEach(m => {
-                            console.log(printMatch(m).join("\n"));
-
+                            logger.info(printMatch(m).join("\n"));
 
                             const source = matches[0];
                             const existingImport = source.evaluateExpression(
                                 `//ImportDeclaration//Identifier[@value='HandlerContext']`);
-                            console.log("wtf does this return: " + existingImport.length)
+                            logger.info("wtf does this return: " + existingImport.length);
                         },
-                    )
+                    );
                 },
             ).then(() => done(), done);
 
     });
 });
-
 
 describe("pass argument", () => {
 
@@ -668,32 +680,32 @@ describe("pass argument", () => {
             });
 
         const instruction: PassArgumentRequirement = new PassArgumentRequirement({
-            "enclosingFunction": {
+            enclosingFunction: {
                 enclosingScope: { kind: "class around method", name: "DifferenceEngine", exported: true },
                 name: "cloneRepo",
-                "filePath": "src/project/diff/DifferenceEngine.ts",
+                filePath: "src/project/diff/DifferenceEngine.ts",
                 access: { kind: "PublicFunctionAccess" }, // TODO: inaccurate
             },
-            "functionWithAdditionalParameter": {
+            functionWithAdditionalParameter: {
                 enclosingScope: {
                     kind: "class around method",
                     name: "GitCommandGitProject",
                     exported: true,
                 },
-                "name": "cloned",
-                "filePath": "src/project/git/GitCommandGitProject.ts",
+                name: "cloned",
+                filePath: "src/project/git/GitCommandGitProject.ts",
                 access: { kind: "PublicFunctionAccess" },
             },
-            "argumentValue": "context",
+            argumentValue: "context",
         });
 
         printStructureOfFile(input, "src/project/diff/DifferenceEngine.ts").then(() =>
             implement(input, instruction).then(() => input.flush())
                 .then(() => {
                     const after = input.findFileSync("src/project/diff/DifferenceEngine.ts").getContentSync();
-                    assert(after.includes("cloned(context, "), after)
+                    assert(after.includes("cloned(context, "), after);
                 }))
-            .then(() => done(), done)
+            .then(() => done(), done);
     });
 
     it("print path of match", done => {
@@ -717,15 +729,15 @@ describe("pass argument", () => {
                 return findMatches(input, TypeScriptES6FileParser, fileOfInterest,
                     paths[0]).then(matches => {
                     assert.equal(identifier(matches[0]), "cloneRepo");
-                })
+                });
             },
         )
-            .then(() => done(), done)
-    })
+            .then(() => done(), done);
+    });
 });
 
 function identifier(parent: TreeNode): string {
-    return childrenNamed(parent, "Identifier")[0].$value
+    return childrenNamed(parent, "Identifier")[0].$value;
 }
 
 function childrenNamed(parent: TreeNode, name: string) {
@@ -739,7 +751,7 @@ function pathOfMatch(project: Project, path: string): Promise<string[]> {
         .then(matches => {
             return matches.map(m => {
                 return guessPathExpression(m);
-            })
+            });
         });
 }
 
@@ -765,13 +777,13 @@ function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] 
 }
 
 describe("populating dummy in test", () => {
-    
+
     it("adds an additional import", done => {
         const fileOfInterest = "test/Something.ts";
         const input = InMemoryProject.of(
             {
                 path: fileOfInterest, content: `import \"mocha\";\n
-             
+
              myFunction();
              `,
             });
@@ -786,25 +798,24 @@ describe("populating dummy in test", () => {
                 kind: "library", name: "HandlerContext",
                 location: "@atomist/automation-client",
             },
-        })
+        });
 
         implement(input, instruction).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
-                assert(after.includes("import { HandlerContext } "), after)
+                assert(after.includes("import { HandlerContext } "), after);
             })
-            .then(() => done(), done)
-    })
+            .then(() => done(), done);
+    });
 });
-
 
 function printStructureOfFile(project: Project, path: string) {
     return findMatches(project, TypeScriptES6FileParser, path,
         `/SourceFile`)
         .then(matches => {
             matches.forEach(m => {
-                console.log(printMatch(m).join("\n"));
-            })
+                logger.info(printMatch(m).join("\n"));
+            });
         });
 }
 
@@ -828,37 +839,37 @@ describe("Adding a parameter", () => {
         const addParameterInstruction: AddParameterRequirement = new AddParameterRequirement({
             functionWithAdditionalParameter: {
                 enclosingScope: { kind: "class around method", name: "GitCommandGitProject", exported: true },
-                "name": "cloned",
-                "filePath": "src/project/git/GitCommandGitProject.ts",
+                name: "cloned",
+                filePath: "src/project/git/GitCommandGitProject.ts",
                 access: { kind: "PublicFunctionAccess" },
             },
-            "parameterName": "context",
-            "parameterType": {
-                "kind": "local",
-                "name": "HandlerContext",
-                "localPath": "src/HandlerContext",
+            parameterName: "context",
+            parameterType: {
+                kind: "local",
+                name: "HandlerContext",
+                localPath: "src/HandlerContext",
             },
-            "populateInTests": {
-                "dummyValue": "{} as HandlerContext",
-                "additionalImport": {
-                    "kind": "local",
-                    "name": "HandlerContext",
-                    "localPath": "src/HandlerContext",
+            populateInTests: {
+                dummyValue: "{} as HandlerContext",
+                additionalImport: {
+                    kind: "local",
+                    name: "HandlerContext",
+                    localPath: "src/HandlerContext",
                 },
             },
         });
 
         implement(input, addParameterInstruction).then(report => {
-            console.log(stringify(report, null, 2));
+            logger.info(stringify(report, null, 2));
             //return printStructureOfFile(input, fileOfInterest);
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
                 assert(after.includes(
                     `import { HandlerContext } from "../../HandlerContext"`),
-                    after.split("\n")[0])
+                    after.split("\n")[0]);
                 assert(after.includes("public static cloned(context: HandlerContext"), after);
-            }).then(() => done(), done)
+            }).then(() => done(), done);
 
     });
 
@@ -883,16 +894,16 @@ describe("Adding a parameter", () => {
             });
 
         implement(input, addParameterInstruction).then(report => {
-            console.log(stringify(report, null, 2));
+            logger.info(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest).then(() =>
                 findMatches(input, TypeScriptES6FileParser, "src/Classy.ts",
                     "//ClassDeclaration[/Identifier[@value='Classy']]//MethodDeclaration[/Identifier[@value='giveMeYourContext']]"))
-                .then((m) => console.log("found " + m.length));
+                .then( m => logger.info("found " + m.length));
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
-                assert(after.includes("public static giveMeYourContext(context: HandlerContext, stuff: string)"), after)
-            }).then(() => done(), done)
+                assert(after.includes("public static giveMeYourContext(context: HandlerContext, stuff: string)"), after);
+            }).then(() => done(), done);
 
     });
 
@@ -913,13 +924,13 @@ describe("Adding a parameter", () => {
         });
 
         implement(input, addParameterInstruction).then(report => {
-            console.log(stringify(report, null, 2));
+            logger.info(stringify(report, null, 2));
             return printStructureOfFile(input, fileOfInterest);
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
-                assert(after.includes("export function giveMeYourContext(context: HandlerContext, stuff: string)"), after)
-            }).then(() => done(), done)
+                assert(after.includes("export function giveMeYourContext(context: HandlerContext, stuff: string)"), after);
+            }).then(() => done(), done);
 
     });
 
@@ -927,12 +938,12 @@ describe("Adding a parameter", () => {
         const input = copyOfBefore();
         implement(input, addParameterRequirement({
             name: "andEvenMoreStuff", filePath: "src/AdditionalFileThatUsesStuff.ts",
-        },)).then(changed => input.flush().then(() => changed))
+        })).then(changed => input.flush().then(() => changed))
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 assert(after.includes(
-                    `andEvenMoreStuff(context: HandlerContext, `), after)
-            }).then(() => done(), done)
+                    `andEvenMoreStuff(context: HandlerContext, `), after);
+            }).then(() => done(), done);
     });
 
     it("Adds an import file too", done => {
@@ -943,10 +954,9 @@ describe("Adding a parameter", () => {
             .then(report => {
                 const after = input.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
                 assert(after.includes(
-                    `import { HandlerContext } from "@atomist/automation-client"`), after)
-            }).then(() => done(), done)
+                    `import { HandlerContext } from "@atomist/automation-client"`), after);
+            }).then(() => done(), done);
     });
-
 
 });
 
@@ -973,10 +983,10 @@ describe("actually run it", () => {
 
         function commitDangit(r1: Changeset, report: Report) {
             if (report.implemented.length === 0) {
-                console.log("Skipping commit for " + stringify(r1));
+                logger.info("Skipping commit for " + stringify(r1));
                 return Promise.resolve();
             }
-            return realProject.commit(describeChangeset(r1)).then(() => Promise.resolve())
+            return realProject.commit(describeChangeset(r1)).then(() => Promise.resolve());
         }
 
         // printStructureOfFile(realProject, "src/project/git/GitCommandGitProject.ts")
@@ -984,7 +994,7 @@ describe("actually run it", () => {
         //
         //     return findMatches(realProject, TypeScriptES6FileParser, "src/project/git/GitCommandGitProject.ts",
         //         "//ClassDeclaration[/Identifier[@value='GitCommandGitProject']]").then(m => {
-        //             console.log("matches: " + m.length)
+        //             logger.info("matches: " + m.length)
         //     })
         //         })
         //     .then(() =>
@@ -995,9 +1005,9 @@ describe("actually run it", () => {
             access: { kind: "PublicFunctionAccess" },
         }, commitDangit)(realProject)
             .then(report => {
-                console.log("implemented: " + stringify(report.addParameterReport.implemented, null, 1))
-                console.log("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2))
+                logger.info("implemented: " + stringify(report.addParameterReport.implemented, null, 1));
+                logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));
             })
-            .then(() => done(), done)
+            .then(() => done(), done);
     }).timeout(1000000);
 });

@@ -4,16 +4,15 @@
  */
 import * as TypescriptEditing from "./TypescriptEditing";
 
-
 export interface Unimplemented {
-    requirement: TypescriptEditing.Requirement,
-    message: string,
+    requirement: TypescriptEditing.Requirement;
+    message: string;
 }
 
 export interface Report {
-    unimplemented: Unimplemented[]
+    unimplemented: Unimplemented[];
 
-    implemented: TypescriptEditing.Requirement[]
+    implemented: TypescriptEditing.Requirement[];
 }
 
 export const emptyReport: Report = {
@@ -25,19 +24,19 @@ export function reportUnimplemented(requirement: TypescriptEditing.Requirement, 
     return {
         unimplemented: [{ requirement, message }],
         implemented: [],
-    }
+    };
 }
 
 export function reportImplemented(requirement: TypescriptEditing.Requirement): Report {
     return {
         unimplemented: [],
         implemented: [requirement],
-    }
+    };
 }
 
 export function combine(report1: Report, report2: Report): Report {
     return {
         unimplemented: report1.unimplemented.concat(report2.unimplemented),
         implemented: report1.implemented.concat(report2.implemented),
-    }
+    };
 }

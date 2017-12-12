@@ -1,19 +1,18 @@
-import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
-import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
-import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
-import { Project } from "@atomist/automation-client/project/Project";
-import { TreeNode } from "@atomist/tree-path/TreeNode";
-import * as _ from "lodash";
 import { logger } from "@atomist/automation-client";
+import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
+import { Project } from "@atomist/automation-client/project/Project";
+import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
+import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
+import { TreeNode } from "@atomist/tree-path/TreeNode";
 import stringify = require("json-stringify-safe");
-import * as TypescriptEditing from "../passContextToClone/TypescriptEditing";
+import * as _ from "lodash";
 import {
     FunctionCallIdentifier, functionCallIdentifierFromTreeNode, localFunctionCallPathExpression,
     pathExpressionIntoScope,
 } from "../passContextToClone/functionCallIdentifier";
-
+import * as TypescriptEditing from "../passContextToClone/TypescriptEditing";
 
 /*
  * To run this while working:
@@ -27,16 +26,16 @@ import {
  */
 
 function printStructureOfFile(project: Project, path: string,
-                              howToPrint: (s: string) => void = (s) => console.log(s)) {
+                              howToPrint: (s: string) => void = s => console.log(s)) {
     return findMatches(project, TypeScriptES6FileParser, path,
         `/SourceFile`)
         .then(matches => {
             if (matches.length === 0) {
-                console.log("no matches found!")
+                console.log("no matches found!");
             }
             matches.forEach(m => {
                 howToPrint(printMatch(m).join("\n"));
-            })
+            });
         });
 }
 
@@ -49,8 +48,7 @@ function printMatch(m: TreeNode): string[] {
     return [me].concat(myBabies);
 }
 
-
-function runInSequence(project: Project, activities: (() => Promise<void>)[]): Promise<any> {
+function runInSequence(project: Project, activities: Array<() => Promise<void>>): Promise<any> {
     return activities.reduce(
         (pp: Promise<void>, callMe: () => Promise<void>) =>
             pp.then(() => callMe())
@@ -67,7 +65,7 @@ function requireExactlyOne<A>(some: A[], msg?: string): A {
 }
 
 function identifier(parent: TreeNode): string {
-    return childrenNamed(parent, "Identifier")[0].$value
+    return childrenNamed(parent, "Identifier")[0].$value;
 }
 
 function childrenNamed(parent: TreeNode, name: string): TreeNode[] {
@@ -106,10 +104,10 @@ function delineateMatches(filePath: string, pxe: PathExpression) {
             const n = mm.length;
             mm.forEach((m, i) => {
                 const startMarker = n > 1 ? `/* [${i + 1}/${n}] -> */` : `/* -> */`;
-                m.$value = startMarker + m.$value + "/* <- */"
+                m.$value = startMarker + m.$value + "/* <- */";
             });
             if (n === 0) {
-                logger.warn("no matches to delineate: " + pxe)
+                logger.warn("no matches to delineate: " + pxe);
             } else {
                 logger.warn("First match for: " + pxe);
                 logger.warn(printMatch(mm[0]).join("\n"));
@@ -117,8 +115,8 @@ function delineateMatches(filePath: string, pxe: PathExpression) {
         }).then(() => inputProject.flush())
         .catch(error => {
             logger.error("Failed path expression: " + pxe);
-            return Promise.reject(error)
-        })
+            return Promise.reject(error);
+        });
 }
 
 type PathExpression = string;
@@ -127,7 +125,7 @@ function matchesInFileOfInterest(pxe: PathExpression) {
     return findMatches(inputProject, TypeScriptES6FileParser,
         fileOfInterest,
         pxe,
-    )
+    );
 }
 
 function reallyEdit() {
@@ -138,21 +136,20 @@ function reallyEdit() {
                 return mm.map(m => m.$value);
             }).then(interfacesInType => gatherKinds(interfacesInType).then((kinds: InterfaceKind[]) => {
             const makeThemIntoClasses = interfacesInType.map(iit => () => {
-                return turnInterfaceToType(iit)
+                return turnInterfaceToType(iit);
             });
             const callTheConstructors = kinds.map(ik => () =>
                 turnInstanceCreationIntoConstructorCalls(ik));
             return runInSequence(inputProject,
-                makeThemIntoClasses.concat(callTheConstructors))
+                makeThemIntoClasses.concat(callTheConstructors));
         }))
         .then(() => turnUnionTypeToSuperclass());
 }
 
 interface InterfaceKind {
-    name: string,
-    kind: KindString
+    name: string;
+    kind: KindString;
 }
-
 
 function findInstanceCreation(kind: KindString): PathExpression {
     return `//ObjectLiteralExpression[/SyntaxList/PropertyAssignment[/Identifier[@value='kind']][/StringLiteral[@value='${kind}']]]`;
@@ -164,8 +161,8 @@ function turnInstanceCreationIntoConstructorCalls(interfaceAndKind: InterfaceKin
         mm.forEach(m => {
             const removeKindProperty = m.$value.replace(new RegExp(`\s*kind: "${interfaceAndKind.kind}",?[\n]?`), "");
             return m.$value = `new ${interfaceAndKind.name}(${removeKindProperty})`;
-        })
-    })
+        });
+    });
 }
 
 type KindString = string;
@@ -196,8 +193,8 @@ function turnUnionTypeToSuperclass(): Promise<void> {
         .then(mm => {
             const unionType = requireExactlyOne(mm, "type alias" + mm.length);
             unionType.$value = superclassTemplate(changeUnionToSuperclassRequirement.name,
-                changeUnionToSuperclassRequirement.commonFields)
-        })
+                changeUnionToSuperclassRequirement.commonFields);
+        });
 }
 
 function turnInterfaceToType(ident: string): Promise<void> {
@@ -209,10 +206,10 @@ function turnInterfaceToType(ident: string): Promise<void> {
                 const propertyName = identifier(propMatch);
                 const optional = hasChild(propMatch, "QuestionToken");
                 const propertyType = trimSemicolon(propMatch.$value.match(/:([\s\S]*)$/)[1].trim());
-                return { propertyName, optional, propertyType }
+                return { propertyName, optional, propertyType };
             });
             const superclassPropertyNames =
-                changeUnionToSuperclassRequirement.commonFields.map(p => p.propertyName)
+                changeUnionToSuperclassRequirement.commonFields.map(p => p.propertyName);
             const kindProperty = requireExactlyOne(properties.filter(p => p.propertyName === "kind"));
             const myProperties = properties
                 .filter(p => !superclassPropertyNames.includes(p.propertyName))
@@ -227,7 +224,7 @@ function turnInterfaceToType(ident: string): Promise<void> {
 }
 
 function parameterNameAndType(f: ClassProperty) {
-    return `${f.propertyName}${f.optional ? "?" : ""}: ${f.propertyType}`
+    return `${f.propertyName}${f.optional ? "?" : ""}: ${f.propertyType}`;
 }
 
 const classTemplate = (name: string, superclass: string, kindString: string,
@@ -245,14 +242,14 @@ const classTemplate = (name: string, superclass: string, kindString: string,
         superclassFields.map(f => `params.${f.propertyName}`);
     return `export class ${name} extends ${superclass} {
         public readonly kind: ${kindString} = ${kindString};
-        
+
         ${propertyDeclarations.join("\n")}
-        
+
         constructor(params: {${constructorParameterObjectPropertyDeclarations.join(",\n")}}) {
             super(${superclassConstructorArguments.join(", ")});
             ${populatePropertyFromParams.join("\n")}
-        } 
-    }`
+        }
+    }`;
 };
 
 const superclassTemplate = (name: string, properties: ClassProperty[]): string => {
@@ -260,15 +257,14 @@ const superclassTemplate = (name: string, properties: ClassProperty[]): string =
         `public ${parameterNameAndType(f)}`);
     return `export abstract class ${name} {
        public kind: string;
-       constructor(${constructorParameters.join(",\n")}) {}     
-   }`
-}
-
+       constructor(${constructorParameters.join(",\n")}) {}
+   }`;
+};
 
 interface ClassProperty {
-    propertyName: string,
-    optional: boolean,
-    propertyType: string
+    propertyName: string;
+    optional: boolean;
+    propertyType: string;
 }
 
 const changeUnionToSuperclassRequirement = {
@@ -291,9 +287,9 @@ function changeUnionToSuperclass() {
         .then(() => reallyEdit())
         .then(() => inputProject.flush())
         .then(() => {
-            logger.warn("DONE")
+            logger.warn("DONE");
         })
-        .catch((error) => logger.error(error.message));
+        .catch( error => logger.error(error.message));
 }
 
 // function moveFunctionsAround() {
@@ -314,22 +310,21 @@ function dontImportFunctionsOrClassesThisWay() {
     const fileOfInterest2 = "test/passContextToClone/editorTest.ts";
 
     return inputProject.findFile(fileOfInterest2)
-        .then(() => printStructureOfFile(inputProject, fileOfInterest2,
-            (s) => logger.warn(s)))
+        .then(() => printStructureOfFile(inputProject, fileOfInterest2, s => logger.warn(s)))
         .then(() => delineateMatches(fileOfInterest2, stupidImports))
         .then(() =>
             findMatches(inputProject, TypeScriptES6FileParser, "**/*.ts",
                 stupidImports))
         .then(mm =>
             mm.map(stupidImport => {
-                const ident = identifier(stupidImport)
+                const ident = identifier(stupidImport);
                 const fullName = requireExactlyOne(
                     childrenNamed(stupidImport, "FirstNode"), printMatch(stupidImport).join("\n")).$value;
                 return {
                     path: (stupidImport as LocatedTreeNode).sourceLocation.path,
                     importName: ident, newName: fullName,
                     wholeImport: stupidImport.$value,
-                }
+                };
             }))
         .then(data => {
             logger.warn(stringify(data, null, 2));
@@ -341,9 +336,9 @@ function dontImportFunctionsOrClassesThisWay() {
                     .then(content => {
                         const newContent = content.replace(d.wholeImport, "")
                             .replace(new RegExp("\\s" + d.importName, "g"), " " + d.newName);
-                        return file.setContent(newContent)
-                    }).then(() => Promise.resolve()))
-            }))
+                        return file.setContent(newContent);
+                    }).then(() => Promise.resolve()));
+            }));
         }).then(() => inputProject.flush());
 
 }
@@ -361,8 +356,8 @@ const findTypeGuardFunctions = (guardedType: string): PathExpression =>
     `//FunctionDeclaration[/FirstTypeNode[/IsKeyword][//Identifier[@value='${guardedType}']]]`;
 
 interface ClassSpec {
-    name: string,
-    filePath: string,
+    name: string;
+    filePath: string;
 }
 
 function findSubclasses(project: Project, glob: string, superclassName: string): Promise<ClassSpec[]> {
@@ -371,8 +366,8 @@ function findSubclasses(project: Project, glob: string, superclassName: string):
             return {
                 name: identifier(subclassMatch),
                 filePath: (subclassMatch as LocatedTreeNode).sourceLocation.path,
-            }
-        }))
+            };
+        }));
 }
 
 /*
@@ -382,21 +377,20 @@ function findTypeGuardFunction(project: Project, glob: string, typeName: string)
     return findMatches(project, TypeScriptES6FileParser, glob, findTypeGuardFunctions(typeName))
         .then(mm => {
                 const m = requireExactlyOne(mm);
-                return functionCallIdentifierFromTreeNode(m)
+                return functionCallIdentifierFromTreeNode(m);
             },
         );
 }
 
 interface If {
-    condition: string,
-    body: string
+    condition: string;
+    body: string;
 }
 
 // assumes local scope, does not find namespaced calls
 const findFunctionsThatCall = (whatTheyCall: FunctionCallIdentifier): PathExpression =>
     `${pathExpressionIntoScope(whatTheyCall.enclosingScope) +
     `//FunctionDeclaration[${localFunctionCallPathExpression(whatTheyCall.name)}]`}`;
-
 
 // does the enclosing function start with if(functionItChecks(...))
 function startsWithCheck(functionItChecks: FunctionCallIdentifier, enclosingFunction: TreeNode): boolean {
@@ -427,10 +421,10 @@ function functionsThatCheck(project: Project, glob: string,
     return findMatches(project, TypeScriptES6FileParser, glob, pxe)
         .then(mm => mm
             .filter(m => startsWithCheck(functionTheyCall, m))
-            .map(m => functionCallIdentifierFromTreeNode(m)))
+            .map(m => functionCallIdentifierFromTreeNode(m)));
 }
 
-/**
+/*
  * OK. Look, here's where I'm leaving off.
  *
  * I want to convert functions like describeRequirement, implement, and findConsequencesOfOne
@@ -490,8 +484,8 @@ function moveFunctionsToMethods() {
             functionsThatCheck(inputProject, fileOfInterest, t)))
             .then(a => _.flatten(a)))
         .then((checkyFunctions: FunctionCallIdentifier[]) => {
-            logger.warn("Functions that check type guards: " + checkyFunctions.map(c => stringify(c)).join("\n"))
-            return checkyFunctions
+            logger.warn("Functions that check type guards: " + checkyFunctions.map(c => stringify(c)).join("\n"));
+            return checkyFunctions;
         });
 }
 
@@ -501,16 +495,15 @@ interface CheckyFunction {
 }
 
 function whatMethodsToAdd(checkyFunction: CheckyFunction): AddMethodToClass[] {
-    return []
+    return [];
 }
 
-
 interface AddMethodToClass {
-    classSpec: ClassSpec,
-    name: string,
-    returnType: string,
+    classSpec: ClassSpec;
+    name: string;
+    returnType: string;
     /* if body is null, method is abstract */
-    body?: string
+    body?: string;
 }
 
 function addMethodToClass(project: Project, requirement: AddMethodToClass): Promise<void> {
@@ -520,7 +513,7 @@ function addMethodToClass(project: Project, requirement: AddMethodToClass): Prom
             const m = requireExactlyOne(mm);
             // find block
             // add method before last curly brace
-        })
+        });
 }
 
 const newMethodTemplate = (name: string, returnType: string, body: string) => {
@@ -529,9 +522,9 @@ const newMethodTemplate = (name: string, returnType: string, body: string) => {
     public ${name}(): ${returnType} {
         ${body}
     }
-`
+`;
     } else {
-        return `\npublic ${name}(): ${returnType};\n`
+        return `\npublic ${name}(): ${returnType};\n`;
     }
 };
 
@@ -545,7 +538,7 @@ function findFunctionDeclarationsInNamespacePxe(name: string): PathExpression {
 function findDeclarationsInNamespace(project: Project, glob: string, namespaceName: string): Promise<FunctionCallIdentifier[]> {
     return findMatches(project, TypeScriptES6FileParser, glob,
         findFunctionDeclarationsInNamespacePxe(namespaceName))
-        .then(mm => mm.map(m => functionCallIdentifierFromTreeNode(m)))
+        .then(mm => mm.map(m => functionCallIdentifierFromTreeNode(m)));
 }
 
 /**
@@ -559,10 +552,10 @@ function removeNamespace(namespaceName: string, filePath: string) {
         .then(declarationNames => {
             logger.warn("Declarations to move: " + stringify(declarationNames));
             return declarationNames;
-        })
+        });
 }
 
 (logger as any).level = "warn";
 removeNamespace("TypescriptEditing", fileOfInterest).then(() => {
-    logger.warn("DONE")
-}, (error) => logger.error(error.toString()));
+    logger.warn("DONE");
+}, error => logger.error(error.toString()));

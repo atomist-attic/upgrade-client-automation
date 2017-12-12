@@ -2,27 +2,26 @@ import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode
 import { evaluateExpression } from "@atomist/tree-path/path/expressionEngine";
 import { TreeNode } from "@atomist/tree-path/TreeNode";
 
-export type FunctionCallIdentifier = {
-    enclosingScope?: EnclosingScope,
-    name: string, filePath: string
-    access: Access
-};
+export interface FunctionCallIdentifier {
+    enclosingScope?: EnclosingScope;
+    name: string; filePath: string;
+    access: Access;
+}
 
-export type PathExpression = string
+export type PathExpression = string;
 
-export type Access = PublicFunctionAccess | PrivateFunctionAccess | PrivateMethodAccess
-
+export type Access = PublicFunctionAccess | PrivateFunctionAccess | PrivateMethodAccess;
 
 export interface PublicFunctionAccess {
-    kind: "PublicFunctionAccess",
+    kind: "PublicFunctionAccess";
 }
 
 export interface PrivateMethodAccess {
-    kind: "PrivateMethodAccess",
+    kind: "PrivateMethodAccess";
 }
 
 export interface PrivateFunctionAccess {
-    kind: "PrivateFunctionAccess",
+    kind: "PrivateFunctionAccess";
 }
 
 export function isPrivateFunctionAccess(scope: Access): scope is PrivateFunctionAccess {
@@ -37,10 +36,9 @@ export function isPrivateMethodAccess(scope: Access): scope is PrivateMethodAcce
     return scope.kind === "PrivateMethodAccess";
 }
 
-
 export function globFromAccess(fci: FunctionCallIdentifier) {
     if (isPublicFunctionAccess(fci.access)) {
-        return "**/*.ts"
+        return "**/*.ts";
     } else {
         return fci.filePath;
     }
@@ -50,7 +48,7 @@ export function globFromAccess(fci: FunctionCallIdentifier) {
  * Scope
  */
 export function qualifiedName(fci: FunctionCallIdentifier) {
-    return qualify(fci.enclosingScope, fci.name)
+    return qualify(fci.enclosingScope, fci.name);
 }
 
 function qualify(s: EnclosingScope, soFar: string): string {
@@ -60,21 +58,20 @@ function qualify(s: EnclosingScope, soFar: string): string {
     return qualify(s.enclosingScope, s.name + "." + soFar);
 }
 
-export type EnclosingScope = ClassAroundMethod | EnclosingNamespace
-
+export type EnclosingScope = ClassAroundMethod | EnclosingNamespace;
 
 export interface ClassAroundMethod {
-    kind: "class around method",
-    name: string,
-    exported: boolean,
-    enclosingScope?: EnclosingScope
+    kind: "class around method";
+    name: string;
+    exported: boolean;
+    enclosingScope?: EnclosingScope;
 }
 
 export interface EnclosingNamespace {
-    kind: "enclosing namespace",
-    name: string,
-    exported: boolean,
-    enclosingScope?: EnclosingScope
+    kind: "enclosing namespace";
+    name: string;
+    exported: boolean;
+    enclosingScope?: EnclosingScope;
 
 }
 
@@ -84,17 +81,16 @@ export function isClassAroundMethod(es: EnclosingScope): es is ClassAroundMethod
 
 function isSameScope(s1: EnclosingScope, s2: EnclosingScope): boolean {
     if (s1 === undefined && s2 === undefined) {
-        return true
+        return true;
     }
-    return s1.kind === s2.kind && s1.name === s2.name && isSameScope(s1.enclosingScope, s2.enclosingScope)
+    return s1.kind === s2.kind && s1.name === s2.name && isSameScope(s1.enclosingScope, s2.enclosingScope);
 }
 
 export function sameFunctionCallIdentifier(r1: FunctionCallIdentifier, r2: FunctionCallIdentifier) {
     return r1.name === r2.name &&
         r1.filePath === r2.filePath &&
-        isSameScope(r1.enclosingScope, r2.enclosingScope)
+        isSameScope(r1.enclosingScope, r2.enclosingScope);
 }
-
 
 export function functionDeclarationPathExpression(fn: FunctionCallIdentifier): PathExpression {
     const identification = `[/Identifier[@value='${fn.name}']]`;
@@ -108,7 +104,6 @@ export function pathExpressionIntoScope(scope: EnclosingScope): PathExpression {
     return components.length === 0 ? "" : "//" + components.join("//");
 }
 
-
 function scopePathExpressionComponents(s: EnclosingScope, soFar: string[] = []): string[] {
     if (s === undefined) {
         return soFar;
@@ -116,7 +111,7 @@ function scopePathExpressionComponents(s: EnclosingScope, soFar: string[] = []):
     const component = isClassAroundMethod(s) ?
         `ClassDeclaration[/Identifier[@value='${s.name}']]` :
         `ModuleDeclaration[/Identifier[@value='${s.name}']]/ModuleBlock`;
-    return [component].concat(soFar)
+    return [component].concat(soFar);
 }
 
 export function functionCallPathExpression(fn: FunctionCallIdentifier) {
@@ -125,12 +120,12 @@ export function functionCallPathExpression(fn: FunctionCallIdentifier) {
         return `//CallExpression[/PropertyAccessExpression/Identifier[@value='${fn.name}']]`;
     }
     if (fn.enclosingScope) {
-        return `//CallExpression[/PropertyAccessExpression[@value='${propertyAccessExpression(fn.enclosingScope, fn.name)}']]`
+        return `//CallExpression[/PropertyAccessExpression[@value='${propertyAccessExpression(fn.enclosingScope, fn.name)}']]`;
     }
     return localFunctionCallPathExpression(fn.name);
 }
 
-function propertyAccessExpression(s:EnclosingScope, soFar: string): string {
+function propertyAccessExpression(s: EnclosingScope, soFar: string): string {
         if (s === undefined) {
                 return soFar;
             }
@@ -138,23 +133,20 @@ function propertyAccessExpression(s:EnclosingScope, soFar: string): string {
     }
 
 export function localFunctionCallPathExpression(name: string): PathExpression {
-    return `//CallExpression[/Identifier[@value='${name}']]`
+    return `//CallExpression[/Identifier[@value='${name}']]`;
 }
 
 function identifier(parent: TreeNode): string {
-    return childrenNamed(parent, "Identifier")[0].$value
+    return childrenNamed(parent, "Identifier")[0].$value;
 }
 
 function childrenNamed(parent: TreeNode, name: string) {
     return parent.$children.filter(child => child.$name === name);
 }
 
-
 function isNamespaceModule(tn: TreeNode): boolean {
-    return tn.$children.some(c => c.$name === "ModuleBlock")
+    return tn.$children.some(c => c.$name === "ModuleBlock");
 }
-
-
 
 export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScope?: EnclosingScope): EnclosingScope | undefined {
     if (!tn.$parent) {
@@ -165,7 +157,7 @@ export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScop
                 const thisLevel: ClassAroundMethod = {
                     kind: "class around method",
                     name: identifier(tn.$parent),
-                    exported: true // TODO: really check
+                    exported: true, // TODO: really check
                 };
                 if (topLevel) {
                     topLevel.enclosingScope = thisLevel;
@@ -176,7 +168,7 @@ export function determineScope(tn: TreeNode, topLevel?: EnclosingScope, baseScop
                     const thisLevel: EnclosingNamespace = {
                         kind: "enclosing namespace",
                         name: identifier(tn.$parent),
-                        exported: true // TODO: really check
+                        exported: true, // TODO: really check
                     };
                     if (topLevel) {
                         topLevel.enclosingScope = thisLevel;
@@ -197,7 +189,7 @@ export function functionCallIdentifierFromTreeNode(functionDeclaration: TreeNode
         enclosingScope: determineScope(functionDeclaration),
         name: enclosingFunctionName, filePath,
         access: determineAccess(functionDeclaration),
-    }
+    };
 }
 
 function determineAccess(fnDeclaration: TreeNode): Access {

@@ -1,28 +1,28 @@
-import { Project } from "@atomist/automation-client/project/Project";
 import { logger } from "@atomist/automation-client";
-import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
+import { Project } from "@atomist/automation-client/project/Project";
 import { findMatches } from "@atomist/automation-client/tree/ast/astUtils";
-import * as path from "path";
 import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
+import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typescript/TypeScriptFileParser";
+import * as path from "path";
 
 export namespace AddImport {
 
-    export type ImportIdentifier = LibraryImport | LocalImport
+    export type ImportIdentifier = LibraryImport | LocalImport;
 
     export interface LibraryImport {
-        kind: "library",
-        name: string,
-        location: string
+        kind: "library";
+        name: string;
+        location: string;
     }
 
     function isLibraryImport(i: ImportIdentifier): i is LibraryImport {
-        return i.kind === "library"
+        return i.kind === "library";
     }
 
     export interface LocalImport {
-        kind: "local",
-        name: string,
-        localPath: string
+        kind: "local";
+        name: string;
+        localPath: string;
     }
 
     function calculateRelativePath(from: string, to: string) {
@@ -75,10 +75,10 @@ export namespace AddImport {
 
     function requireExactlyOne(m: MatchResult[], msg: string): MatchResult {
         if (!m) {
-            throw new Error("match result undefined. " + msg)
+            throw new Error("match result undefined. " + msg);
         }
-        if ( m.length != 1) {
-            throw new Error("Expected 1, got " + m.length + " matches. " + msg)
+        if ( m.length !== 1) {
+            throw new Error("Expected 1, got " + m.length + " matches. " + msg);
         }
         return m[0];
     }

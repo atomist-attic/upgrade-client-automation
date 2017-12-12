@@ -1,9 +1,9 @@
-import stringify = require("json-stringify-safe");
-import { Project } from "@atomist/automation-client/project/Project";
 import { logger } from "@atomist/automation-client";
-import { Report, reportUnimplemented } from "./Report";
-import { Consequences, emptyConsequences } from "./Consequences";
+import { Project } from "@atomist/automation-client/project/Project";
+import stringify = require("json-stringify-safe");
 import { Changeset } from "./Changeset";
+import { Consequences, emptyConsequences } from "./Consequences";
+import { Report, reportUnimplemented } from "./Report";
 
 /*
  * Requirements describe what we need to do
@@ -27,23 +27,19 @@ export abstract class Requirement {
     }
 
     public implement(project: Project): Promise<Report> {
-        return Promise.resolve(reportUnimplemented(this, "I don't know how to implement that yet"))
+        return Promise.resolve(reportUnimplemented(this, "I don't know how to implement that yet"));
     }
 }
 
-
-
 export function sameRequirement(r1: Requirement, r2: Requirement): boolean {
-    return r1.kind === r2.kind && r1.sameRequirement(r2)
+    return r1.kind === r2.kind && r1.sameRequirement(r2);
 
 }
 
-
 export type PathExpression = string;
 
-
 export function describeRequirement(r: Requirement): string {
-        return r.describe()
+        return r.describe();
 }
 
 /*
@@ -51,7 +47,7 @@ export function describeRequirement(r: Requirement): string {
  * that have to be implemented in order to implement this one.
  */
 function findConsequencesOfOne(project: Project, requirement: Requirement): Promise<Consequences> {
-    return requirement.findConsequences(project)
+    return requirement.findConsequences(project);
 }
 
 export function changesetForRequirement(project: Project, requirement: Requirement): Promise<Changeset> {
@@ -90,11 +86,10 @@ function findConsequences(project: Project,
         return findConsequences(project,
             unchecked.concat(consequences.concomitantChanges),
             checked,
-            prerequisites.concat(consequences.prerequisiteChanges))
+            prerequisites.concat(consequences.prerequisiteChanges));
     });
 }
 
 export function implement(project: Project, requirement: Requirement): Promise<Report> {
-    return requirement.implement(project)
+    return requirement.implement(project);
 }
-

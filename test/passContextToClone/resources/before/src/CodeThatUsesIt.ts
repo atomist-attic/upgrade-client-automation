@@ -14,7 +14,7 @@ export function exportedAndHasContextAlready(context: HandlerContext, moreStuff:
 
 function doesNotYetHaveContext(thing: string) {
     logger.info("stuff");
-    const booger = InHere.giveMeYourContext("yeah")
+    const booger = InHere.giveMeYourContext("yeah");
     return booger.toString();
 }
 
