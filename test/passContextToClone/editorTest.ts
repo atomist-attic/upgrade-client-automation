@@ -18,7 +18,7 @@ import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemory
 import * as stringify from "json-stringify-safe";
 import "mocha";
 import * as assert from "power-assert";
-import { passContextToFunction } from "../../src/passContextToClone/editor";
+import { addParameterEdit, passContextToFunction } from "../../src/passContextToClone/editor";
 
 import { logger } from "@atomist/automation-client";
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
@@ -58,7 +58,7 @@ import {
 import { LibraryImport } from "../../src/passContextToClone/addImport";
 import {
     functionCallIdentifierFromProject,
-    methodInClass,
+    methodInClass, topLevelFunction,
 } from "../../src/passContextToClone/functionCallIdentifierFromProject";
 
 function addParameterRequirement(fci: Partial<FunctionCallIdentifier>): AddParameterRequirement {
@@ -489,7 +489,7 @@ describe("detection of consequences", () => {
 
         it("Locates the import path for the downstream project to use");
 
-        it("Requests a migration for a public method in a public class",  done => {
+        it("Requests a migration for a public method in a public class", done => {
             const fileOfInterest = "src/Classy.ts";
             const input = InMemoryProject.of({
                 path: fileOfInterest, content: `
@@ -519,7 +519,7 @@ class Classy {
 
                     return changesetForRequirement(input, original)
                         .then(cs => cs.requirements) // in the same changeset
-                        .then(consequences =>  {
+                        .then(consequences => {
                             const amr = consequences.find(c => isAddMigrationRequirement(c)) as AddMigrationRequirement;
                             assert(amr);
 
@@ -1097,7 +1097,7 @@ describe("actually run it", () => {
 
     // question: how can I turn off debug output?
 
-    it("just run it", done => {
+    it.skip("just run it", done => {
         (logger as any).level = "info";
 
         const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
@@ -1130,6 +1130,39 @@ describe("actually run it", () => {
                 logger.info("implemented: " + stringify(report.addParameterReport.implemented, null, 1));
                 logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));
             })
+            .then(() => done(), done);
+    })//.timeout(1000000);
+
+    it("will add this parameter in this other project", done => {
+        (logger as any).level = "info";
+
+        const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("tslint",
+            "/Users/jessitron/code/atomist/automation-client-samples-ts-docker"), { token: "poo" });
+
+        function commitDangit(r1: Changeset, report: Report) {
+            if (report.implemented.length === 0) {
+                logger.info("Skipping commit for " + stringify(r1));
+                return Promise.resolve();
+            }
+            return realProject.commit(describeChangeset(r1)).then(() => Promise.resolve());
+        }
+
+        functionCallIdentifierFromProject(realProject, "src/handlers/PushToTsLinting.ts",
+            topLevelFunction("problemToAttachment")).then(functionOfInterest => {
+
+            const originalRequirement = new AddParameterRequirement({
+                functionWithAdditionalParameter: functionOfInterest,
+                parameterName: "token",
+                parameterType: { kind: "built-in", name: "string"},
+                why: "so I can get file contents from github"
+            });
+
+            return addParameterEdit(originalRequirement, commitDangit)(realProject)
+                .then(report => {
+                    logger.info("implemented: " + stringify(report.addParameterReport.implemented, null, 1));
+                    logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));
+                })
+        })
             .then(() => done(), done);
     }).timeout(1000000);
 });

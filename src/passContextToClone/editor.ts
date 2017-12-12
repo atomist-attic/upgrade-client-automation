@@ -33,24 +33,11 @@ export interface MySpecialEditReport extends EditResult {
 export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>;
 const doNothing = () => Promise.resolve();
 
-export function passContextToFunction(params: FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
-    return (p: Project) => {
-        const handlerContextType: ImportIdentifier = {
-            kind: "local",
-            name: "HandlerContext",
-            localPath: "src/HandlerContext",
-        };
-        const originalRequirement: TypescriptEditing.Requirement = new AddParameterRequirement({
-            functionWithAdditionalParameter: params,
-            parameterType: handlerContextType,
-            parameterName: "context",
-            populateInTests: {
-                dummyValue: "{} as HandlerContext",
-                additionalImport: handlerContextType,
-            },
-            why: "I want to use the context in here",
-        });
 
+export function addParameterEdit(originalRequirement: AddParameterRequirement,
+                                 betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+
+    return (p: Project) => {
         return TypescriptEditing.changesetForRequirement(p, originalRequirement)
             .then(changesetTree => {
                 // man, I wish I could find my TreePrinter
@@ -75,6 +62,30 @@ export function passContextToFunction(params: FunctionCallIdentifier, betweenCha
     };
 }
 
+
+export function passContextToFunction(params: FunctionCallIdentifier,
+                                      betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+    return (p: Project) => {
+        const handlerContextType: ImportIdentifier = {
+            kind: "local",
+            name: "HandlerContext",
+            localPath: "src/HandlerContext",
+        };
+        const originalRequirement = new AddParameterRequirement({
+            functionWithAdditionalParameter: params,
+            parameterType: handlerContextType,
+            parameterName: "context",
+            populateInTests: {
+                dummyValue: "{} as HandlerContext",
+                additionalImport: handlerContextType,
+            },
+            why: "I want to use the context in here",
+        });
+
+        return addParameterEdit(originalRequirement, betweenChangesets)(p)
+    }
+}
+
 /*
  * return an ordered list of changesets, such that each changeset
  * comes after all of its prerequisites.
@@ -92,7 +103,7 @@ function implementInSequenceWithFlushes(project: Project, activities: Typescript
     return activities.reduce(
         (pp: Promise<Report>, r1: TypescriptEditing.Requirement) => pp
             .then(allTheReportsFromBefore => TypescriptEditing.implement(project, r1)
-                .then( report1 => project.flush()
+                .then(report1 => project.flush()
                     .then(() => combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(emptyReport));
 }
@@ -103,7 +114,7 @@ function implementChangesets(project: Project, activities: Changeset[],
         (pp: Promise<Report>, c1: Changeset) =>
             pp.then(allTheReportsFromBefore =>
                 implementInSequenceWithFlushes(project, c1.requirements)
-                    .then( report1 => betweenChangesets(c1, report1)
+                    .then(report1 => betweenChangesets(c1, report1)
                         .then(() => combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(emptyReport));
 }

@@ -6,7 +6,7 @@ import { TypeScriptES6FileParser } from "@atomist/automation-client/tree/ast/typ
 import * as path from "path";
 
 
-export type ImportIdentifier = LibraryImport | LocalImport;
+export type ImportIdentifier = LibraryImport | LocalImport | BuiltIn;
 
 export interface LibraryImport {
     kind: "library";
@@ -21,12 +21,21 @@ export interface LocalImport {
     externalPath?: string;
 }
 
+export interface BuiltIn {
+    kind: "built-in";
+    name: string
+}
+
 export function isLibraryImport(i: ImportIdentifier): i is LibraryImport {
     return i.kind === "library";
 }
 
 export function isLocalImport(i: ImportIdentifier): i is LibraryImport {
     return i.kind === "local";
+}
+
+export function isBuiltIn(i: ImportIdentifier): i is BuiltIn {
+    return i.kind === "built-in";
 }
 
 export function externalImportLocation(project: Project, localPath: string) {
@@ -43,6 +52,9 @@ function calculateRelativePath(from: string, to: string) {
 }
 
 export function addImport(project: Project, path: string, what: ImportIdentifier): Promise<boolean> {
+    if (isBuiltIn(what)) {
+        return Promise.resolve(false);
+    }
     return findMatches(project, TypeScriptES6FileParser, path, "/SourceFile")
         .then(sources => {
             const source = requireExactlyOne(sources, "didn't parse " + path);

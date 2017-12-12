@@ -19,7 +19,10 @@ import {
     isPublicFunctionAccess, isPublicMethodAccess, qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
-import { addImport, externalImportLocation, ImportIdentifier, isLibraryImport, LibraryImport } from "./addImport";
+import {
+    addImport, BuiltIn, externalImportLocation, ImportIdentifier, isBuiltIn, isLibraryImport,
+    LibraryImport,
+} from "./addImport";
 import { PassArgumentRequirement } from "./PassArgumentRequirement";
 import { PassDummyInTestsRequirement } from "./PassDummyInTestRequirement";
 import { Report, reportImplemented, reportUnimplemented } from "./Report";
@@ -30,7 +33,7 @@ export class AddParameterRequirement extends Requirement {
     public functionWithAdditionalParameter: FunctionCallIdentifier;
     public parameterType: ImportIdentifier;
     public parameterName: string;
-    public populateInTests: {
+    public populateInTests?: {
         dummyValue: string;
         additionalImport?: ImportIdentifier;
     };
@@ -39,7 +42,7 @@ export class AddParameterRequirement extends Requirement {
         functionWithAdditionalParameter: FunctionCallIdentifier,
         parameterType: ImportIdentifier,
         parameterName: string,
-        populateInTests: {
+        populateInTests?: {
             dummyValue: string;
             additionalImport?: ImportIdentifier;
         },
@@ -72,8 +75,8 @@ export class AddParameterRequirement extends Requirement {
     }
 
     public downstream(project: Project): AddParameterRequirement {
-        const downstreamParameterType: LibraryImport =
-            isLibraryImport(this.parameterType) ?
+        const downstreamParameterType: LibraryImport | BuiltIn =
+            isLibraryImport(this.parameterType) || isBuiltIn(this.parameterType) ?
                 this.parameterType :
                 {
                     kind: "library",
@@ -101,11 +104,6 @@ export function isAddParameterRequirement(r: Requirement): r is AddParameterRequ
 }
 
 function findConsequencesOfAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Consequences> {
-    const passDummyInTests: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
-        functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
-        dummyValue: requirement.populateInTests.dummyValue,
-        additionalImport: requirement.populateInTests.additionalImport,
-    });
 
     // someday: if the access is private to a class, then the pxe should be narrowed from above
     // also, imports should narrow from above too
@@ -116,8 +114,12 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
     logger.info("Looking for calls in : " + callWithinFunction);
     logger.info("looking in: " + globFromAccess(requirement.functionWithAdditionalParameter));
 
-    const testConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
-        concomitantChange(passDummyInTests) : emptyConsequences;
+    const testConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) && requirement.populateInTests ?
+        concomitantChange(new PassDummyInTestsRequirement({
+            functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
+            dummyValue: requirement.populateInTests.dummyValue,
+            additionalImport: requirement.populateInTests.additionalImport,
+        })) : emptyConsequences;
     const externalConsequences = requirement.isExternallyFacing() ?
         concomitantChange(new AddMigrationRequirement(requirement.downstream(project), requirement))
         : emptyConsequences;

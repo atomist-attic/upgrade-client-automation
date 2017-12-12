@@ -27,3 +27,8 @@ function requireExactlyOne(m: TreeNode[], msg: string): TreeNode {
 export function methodInClass(className: string, methodName: string): PathExpression {
     return `//ClassDeclaration[/Identifier[@value='${className}']]//MethodDeclaration[/Identifier[@value='${methodName}']]`;
 }
+
+
+export function topLevelFunction(name: string): PathExpression {
+    return `//FunctionDeclaration[/Identifier[@value='${name}']]`;
+}
