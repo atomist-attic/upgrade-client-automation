@@ -401,7 +401,7 @@ describe("detection of consequences", () => {
 
     describe("Add Parameter on a public function/method leads to a migration", () => {
 
-        it("Requests a new migration when an exported function is changed", done => {
+        it.skip("Requests a new migration when an exported function is changed", done => {
             const fileOfInterest = "src/thinger.ts";
             const input = InMemoryProject.of({
                 path: fileOfInterest, content: `

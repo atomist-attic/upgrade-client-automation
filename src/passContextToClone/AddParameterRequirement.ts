@@ -98,8 +98,8 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
 
     const testConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
         concomitantChange(passDummyInTests) : emptyConsequences;
-    const externalConsequences = concomitantChange(new AddMigrationRequirement(requirement, requirement));
-    const globalConsequences = combineConsequences(testConsequences, externalConsequences);
+  //  const externalConsequences = concomitantChange(new AddMigrationRequirement(requirement, requirement));
+    //const globalConsequences = combineConsequences(testConsequences, externalConsequences);
 
     // in source, either find a parameter that fits, or receive it.
     return findMatches(project, TypeScriptES6FileParser, globFromAccess(requirement.functionWithAdditionalParameter),
@@ -108,7 +108,7 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
                 combineConsequences(cc, consequencesOfFunctionCall(requirement, functionCallMatch)),
             emptyConsequences))
         .then((srcConsequences: Consequences) => {
-            return combineConsequences(srcConsequences, globalConsequences);
+            return combineConsequences(srcConsequences, testConsequences);
         });
 }
 
