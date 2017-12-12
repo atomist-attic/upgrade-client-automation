@@ -9,11 +9,11 @@ import { MatchResult } from "@atomist/automation-client/tree/ast/FileHits";
 import { LocatedTreeNode } from "@atomist/automation-client/tree/LocatedTreeNode";
 import stringify = require("json-stringify-safe");
 import * as TypescriptEditing from "../passContextToClone/TypescriptEditing";
-import FunctionCallIdentifier = TypescriptEditing.FunctionCallIdentifier;
 import {
-    functionCallIdentifierFromTreeNode, functionCallPathExpression, localFunctionCallPathExpression,
+    FunctionCallIdentifier, functionCallIdentifierFromTreeNode, localFunctionCallPathExpression,
     pathExpressionIntoScope,
-} from "../passContextToClone/addParameterImpl";
+} from "../passContextToClone/functionCallIdentifier";
+
 
 /*
  * To run this while working:
@@ -538,7 +538,7 @@ const newMethodTemplate = (name: string, returnType: string, body: string) => {
 function findFunctionDeclarationsInNamespacePxe(name: string): PathExpression {
     const namespaceBlock = `//ModuleDeclaration[/Identifier[@value='${name}']]/ModuleBlock`;
 
-  //  return `${namespaceBlock}//ClassDeclaration | ${namespaceBlock}//FunctionDeclaration`;
+    //  return `${namespaceBlock}//ClassDeclaration | ${namespaceBlock}//FunctionDeclaration`;
     return `${namespaceBlock}//FunctionDeclaration`;
 }
 
@@ -556,8 +556,7 @@ function findDeclarationsInNamespace(project: Project, glob: string, namespaceNa
  */
 function removeNamespace(namespaceName: string, filePath: string) {
     return findDeclarationsInNamespace(inputProject, filePath, namespaceName)
-        .then(declarationNames =>
-        {
+        .then(declarationNames => {
             logger.warn("Declarations to move: " + stringify(declarationNames));
             return declarationNames;
         })

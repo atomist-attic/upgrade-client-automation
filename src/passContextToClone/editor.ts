@@ -18,11 +18,13 @@ import { HandlerContext, logger } from "@atomist/automation-client";
 import * as _ from "lodash";
 import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
 import { AddImport } from "./manipulateImports";
-import stringify = require("json-stringify-safe");
+import * as stringify from "json-stringify-safe";
 
 import * as TypescriptEditing from "./TypescriptEditing";
 import { combine, emptyReport, Report } from "./Report";
 import { Changeset, describeChangeset } from "./Changeset";
+import { FunctionCallIdentifier } from "./functionCallIdentifier";
+import { AddParameterRequirement } from "./AddParameterRequirement";
 
 
 
@@ -34,14 +36,14 @@ export interface MySpecialEditReport extends EditResult {
 export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>
 const doNothing = () => Promise.resolve();
 
-export function passContextToFunction(params: TypescriptEditing.FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+export function passContextToFunction(params: FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
         const handlerContextType: AddImport.ImportIdentifier = {
             kind: "local",
             name: "HandlerContext",
             localPath: "src/HandlerContext",
         };
-        const originalRequirement: TypescriptEditing.Requirement = new TypescriptEditing.AddParameterRequirement({
+        const originalRequirement: TypescriptEditing.Requirement = new AddParameterRequirement({
             functionWithAdditionalParameter: params,
             parameterType: handlerContextType,
             parameterName: "context",
