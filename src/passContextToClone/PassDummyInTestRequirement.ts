@@ -41,7 +41,10 @@ export class PassDummyInTestsRequirement extends Requirement {
 
     public describe() {
         return `Pass dummy value to ${qualifiedName(this.functionWithAdditionalParameter)} in tests`
+    }
 
+    public implement(project: Project) {
+        return passDummyInTests(project, this);
     }
 }
 
@@ -55,7 +58,7 @@ export function isPassDummyInTests(r: Requirement): r is PassDummyInTestsRequire
 /*
 * Implementation: find all the calls in the test sources and pass a dummy argument
 */
-export function passDummyInTests(project: Project, requirement: PassDummyInTestsRequirement): Promise<Report> {
+function passDummyInTests(project: Project, requirement: PassDummyInTestsRequirement): Promise<Report> {
     return findMatches(project, TypeScriptES6FileParser, "test*/**/*.ts",
         functionCallPathExpression(requirement.functionWithAdditionalParameter))
         .then(matches => {

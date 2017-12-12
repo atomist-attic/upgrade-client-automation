@@ -146,7 +146,7 @@ describe("editor to pass the context into the cloned method", () => {
 
                 console.log(modified);
                 assert.equal(report.addParameterReport.unimplemented.length, 0,
-                    stringify(report, null, 2));
+                    stringify(report.addParameterReport.unimplemented, null, 2));
                 assert.equal(report.addParameterReport.implemented.length, 12,
                     stringify(report, null, 2));
                 assert.equal(modified, expected, modified);
@@ -765,9 +765,7 @@ function printMatchHierarchy(m: TreeNode, hierarchy: TreeNode[] = []): string[] 
 }
 
 describe("populating dummy in test", () => {
-
-    it("finds tests in test-api");
-
+    
     it("adds an additional import", done => {
         const fileOfInterest = "test/Something.ts";
         const input = InMemoryProject.of(

@@ -50,8 +50,7 @@ export class PassArgumentRequirement extends Requirement {
     }
 }
 
-
-export function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Report> {
+function passArgument(project: Project, requirement: PassArgumentRequirement): Promise<Report> {
 
     const fullPathExpression = functionDeclarationPathExpression(requirement.enclosingFunction) +
         functionCallPathExpression(requirement.functionWithAdditionalParameter);
