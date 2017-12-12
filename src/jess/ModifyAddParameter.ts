@@ -26,12 +26,12 @@ import * as TypescriptEditing from "../passContextToClone/TypescriptEditing";
  */
 
 function printStructureOfFile(project: Project, path: string,
-                              howToPrint: (s: string) => void = s => console.log(s)) {
+                              howToPrint: (s: string) => void = s => logger.info(s)) {
     return findMatches(project, TypeScriptES6FileParser, path,
         `/SourceFile`)
         .then(matches => {
             if (matches.length === 0) {
-                console.log("no matches found!");
+                logger.info("no matches found!");
             }
             matches.forEach(m => {
                 howToPrint(printMatch(m).join("\n"));
@@ -132,7 +132,7 @@ function reallyEdit() {
     return matchesInFileOfInterest(findUnionTypeComponents)
         .then(
             mm => {
-                console.log("found " + mm.length + " matches");
+                logger.info("found " + mm.length + " matches");
                 return mm.map(m => m.$value);
             }).then(interfacesInType => gatherKinds(interfacesInType).then((kinds: InterfaceKind[]) => {
             const makeThemIntoClasses = interfacesInType.map(iit => () => {
@@ -279,8 +279,8 @@ const changeUnionToSuperclassRequirement = {
 // }
 
 function changeUnionToSuperclass() {
-    console.log("where");
-    console.log("basedir: " + inputProject.baseDir);
+    logger.info("where");
+    logger.info("basedir: " + inputProject.baseDir);
     return inputProject.findFile(fileOfInterest)
         .then(() => printStructureOfFile(inputProject, fileOfInterest))
         .then(() => delineateMatches(fileOfInterest, findInstanceCreation("Pass Argument")))
