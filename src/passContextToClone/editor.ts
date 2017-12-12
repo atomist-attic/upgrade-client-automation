@@ -18,13 +18,13 @@ import { EditResult, successfulEdit } from "@atomist/automation-client/operation
 import { Project } from "@atomist/automation-client/project/Project";
 import * as stringify from "json-stringify-safe";
 import * as _ from "lodash";
-import { AddImport } from "./manipulateImports";
 
 import { AddParameterRequirement } from "./AddParameterRequirement";
 import { Changeset, describeChangeset } from "./Changeset";
 import { FunctionCallIdentifier } from "./functionCallIdentifier";
 import { combine, emptyReport, Report } from "./Report";
 import * as TypescriptEditing from "./TypescriptEditing";
+import { ImportIdentifier } from "./addImport";
 
 export interface MySpecialEditReport extends EditResult {
     addParameterReport: Report;
@@ -35,7 +35,7 @@ const doNothing = () => Promise.resolve();
 
 export function passContextToFunction(params: FunctionCallIdentifier, betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
-        const handlerContextType: AddImport.ImportIdentifier = {
+        const handlerContextType: ImportIdentifier = {
             kind: "local",
             name: "HandlerContext",
             localPath: "src/HandlerContext",

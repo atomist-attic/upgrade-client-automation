@@ -19,7 +19,7 @@ import {
     isPublicFunctionAccess, qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
-import { AddImport } from "./manipulateImports";
+import { addImport, externalImportLocation, ImportIdentifier, isLibraryImport, LibraryImport } from "./addImport";
 import { PassArgumentRequirement } from "./PassArgumentRequirement";
 import { PassDummyInTestsRequirement } from "./PassDummyInTestRequirement";
 import { Report, reportImplemented, reportUnimplemented } from "./Report";
@@ -28,20 +28,20 @@ export class AddParameterRequirement extends Requirement {
     public readonly kind: "Add Parameter" = "Add Parameter";
 
     public functionWithAdditionalParameter: FunctionCallIdentifier;
-    public parameterType: AddImport.ImportIdentifier;
+    public parameterType: ImportIdentifier;
     public parameterName: string;
     public populateInTests: {
         dummyValue: string;
-        additionalImport?: AddImport.ImportIdentifier;
+        additionalImport?: ImportIdentifier;
     };
 
     constructor(params: {
         functionWithAdditionalParameter: FunctionCallIdentifier,
-        parameterType: AddImport.ImportIdentifier,
+        parameterType: ImportIdentifier,
         parameterName: string,
         populateInTests: {
             dummyValue: string;
-            additionalImport?: AddImport.ImportIdentifier;
+            additionalImport?: ImportIdentifier;
         },
         why?: any,
     }) {
@@ -70,6 +70,25 @@ export class AddParameterRequirement extends Requirement {
     public implement(project: Project) {
         return implementAddParameter(project, this);
     }
+
+    public downstream(project: Project): AddParameterRequirement {
+        const downstreamParameterType: LibraryImport =
+            isLibraryImport(this.parameterType) ?
+                this.parameterType :
+                {
+                    kind: "library",
+                    name: this.parameterType.name,
+                    location: this.parameterType.externalPath ||
+                    externalImportLocation(project, this.parameterType.localPath),
+                };
+
+        return new AddParameterRequirement({
+            functionWithAdditionalParameter: this.functionWithAdditionalParameter,
+            parameterType: downstreamParameterType,
+            parameterName: this.parameterName,
+            populateInTests: this.populateInTests,
+        });
+    }
 }
 
 export function isAddParameterRequirement(r: Requirement): r is AddParameterRequirement {
@@ -94,19 +113,22 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
 
     const testConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
         concomitantChange(passDummyInTests) : emptyConsequences;
-  //  const externalConsequences = concomitantChange(new AddMigrationRequirement(requirement, requirement));
-    //const globalConsequences = combineConsequences(testConsequences, externalConsequences);
+    const externalConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) ?
+        concomitantChange(new AddMigrationRequirement(requirement.downstream(project), requirement))
+        : emptyConsequences;
+    const globalConsequences = combineConsequences(testConsequences, externalConsequences);
 
-    // in source, either find a parameter that fits, or receive it.
+// in source, either find a parameter that fits, or receive it.
     return findMatches(project, TypeScriptES6FileParser, globFromAccess(requirement.functionWithAdditionalParameter),
         callWithinFunction + "|" + callWithinMethod)
         .then(matches => matches.reduce((cc, functionCallMatch) =>
                 combineConsequences(cc, consequencesOfFunctionCall(requirement, functionCallMatch)),
             emptyConsequences))
         .then((srcConsequences: Consequences) => {
-            return combineConsequences(srcConsequences, testConsequences);
+            return combineConsequences(srcConsequences, globalConsequences);
         });
 }
+
 
 export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
                                            enclosingFunction: MatchResult): Consequences {
@@ -156,7 +178,7 @@ export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
 }
 
 function implementAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
-    return AddImport.addImport(project,
+    return addImport(project,
         requirement.functionWithAdditionalParameter.filePath,
         requirement.parameterType)
         .then(importAdded => {

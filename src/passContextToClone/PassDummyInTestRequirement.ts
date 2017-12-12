@@ -11,7 +11,7 @@ import {
     qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
-import { AddImport } from "./manipulateImports";
+import { addImport, ImportIdentifier } from "./addImport";
 import { Requirement } from "./TypescriptEditing";
 
 export class PassDummyInTestsRequirement extends Requirement {
@@ -19,12 +19,12 @@ export class PassDummyInTestsRequirement extends Requirement {
 
     public functionWithAdditionalParameter: FunctionCallIdentifier;
     public dummyValue: string;
-    public additionalImport?: AddImport.ImportIdentifier;
+    public additionalImport?: ImportIdentifier;
 
     constructor(params: {
         functionWithAdditionalParameter: FunctionCallIdentifier,
         dummyValue: string,
-        additionalImport?: AddImport.ImportIdentifier,
+        additionalImport?: ImportIdentifier,
         why?: any,
     }) {
         super(params.why);
@@ -80,7 +80,7 @@ function passDummyInTests(project: Project, requirement: PassDummyInTestsRequire
                 const addImportTo = requirement.additionalImport ? filesChanged : [];
                 return Promise.all(addImportTo
                     .map(f => {
-                        return AddImport.addImport(project, f, requirement.additionalImport);
+                        return addImport(project, f, requirement.additionalImport);
                     }))
                     .then(() => reportImplemented(requirement));
             }

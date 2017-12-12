@@ -1,7 +1,7 @@
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import "mocha";
 import * as assert from "power-assert";
-import { AddImport } from "../../src/passContextToClone/manipulateImports";
+import { addImport } from "../../src/passContextToClone/addImport";
 
 describe("add import", () => {
     it("Adds a name to an existing import", done => {
@@ -12,7 +12,7 @@ import { Stuff } from "@atomist/automation-client";
 const blah = "blah"
 `,
         });
-        AddImport.addImport(input, "src/Whatever.ts",
+        addImport(input, "src/Whatever.ts",
             { kind: "library", name: "HandlerContext", location: "@atomist/automation-client" })
             .then(changed => input.flush().then(() => changed))
             .then(changed => {
@@ -29,7 +29,7 @@ const blah = "blah"
             const input = InMemoryProject.of(
                 { path: fileOfInterest, content: "const blah;"});
 
-            AddImport.addImport(input, fileOfInterest,
+            addImport(input, fileOfInterest,
                 {kind: "local", name: "HandlerContext", localPath: "src/HandlerContext"})
                 .then(() => input.flush())
                 .then(() => {
@@ -46,7 +46,7 @@ const blah = "blah"
             const input = InMemoryProject.of(
                 { path: fileOfInterest, content: "const blah;"});
 
-            AddImport.addImport(input, fileOfInterest,
+            addImport(input, fileOfInterest,
                 {kind: "local", name: "HandlerContext", localPath: "src/HandlerContext"})
                 .then(() => input.flush())
                 .then(() => {

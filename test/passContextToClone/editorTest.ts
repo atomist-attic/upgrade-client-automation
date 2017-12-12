@@ -39,7 +39,6 @@ import {
 } from "../../src/passContextToClone/AddParameterRequirement";
 import { Changeset, describeChangeset } from "../../src/passContextToClone/Changeset";
 import { FunctionCallIdentifier } from "../../src/passContextToClone/functionCallIdentifier";
-import { AddImport } from "../../src/passContextToClone/manipulateImports";
 import {
     isPassArgumentRequirement,
     PassArgumentRequirement,
@@ -53,7 +52,7 @@ import {
     changesetForRequirement, implement, Requirement,
     sameRequirement,
 } from "../../src/passContextToClone/TypescriptEditing";
-import LibraryImport = AddImport.LibraryImport;
+import { LibraryImport } from "../../src/passContextToClone/addImport";
 
 function addParameterRequirement(fci: Partial<FunctionCallIdentifier>): AddParameterRequirement {
     const fullFci: FunctionCallIdentifier = {
@@ -149,7 +148,8 @@ describe("editor to pass the context into the cloned method", () => {
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
                 logger.info(modified);
-                assert.equal(report.addParameterReport.unimplemented.length, 0,
+                // When AddMigration is implemented, set this 3 to 0
+                assert.equal(report.addParameterReport.unimplemented.length, 3,
                     stringify(report.addParameterReport.unimplemented, null, 2));
                 assert.equal(report.addParameterReport.implemented.length, 12,
                     stringify(report, null, 2));
@@ -405,7 +405,7 @@ describe("detection of consequences", () => {
 
     describe("Add Parameter on a public function/method leads to a migration", () => {
 
-        it.skip("Requests a new migration when an exported function is changed", done => {
+        it("Requests a new migration when an exported function is changed", done => {
             const fileOfInterest = "src/thinger.ts";
             const input = InMemoryProject.of({
                 path: fileOfInterest, content: `
@@ -420,16 +420,18 @@ describe("detection of consequences", () => {
                     filePath: fileOfInterest,
                     access: { kind: "PublicFunctionAccess" },
                 },
-                parameterType: { kind: "library", name: "HandlerContext", location: "../HandlerContext.ts" },
+                parameterType: {
+                    kind: "local", name: "HandlerContext", localPath: "../HandlerContext.ts",
+                    externalPath: "@atomist/automation-client",
+                },
                 parameterName: "context",
                 populateInTests: {
                     dummyValue: "{}",
                 },
             });
 
-            printStructureOfFile(input, fileOfInterest)
-                .then(() => changesetForRequirement(input, original)
-                    .then(cs => cs.requirements)) // in the same changeset
+            changesetForRequirement(input, original)
+                .then(cs => cs.requirements) // in the same changeset
                 .then(consequences => {
                     const amr = consequences.find(c => isAddMigrationRequirement(c)) as AddMigrationRequirement;
                     assert(amr);
@@ -442,13 +444,48 @@ describe("detection of consequences", () => {
                 })
                 .then(() => done(), done);
         });
+
+        it("Does not produce a migration for a private function", done => {
+            const fileOfInterest = "src/thinger.ts";
+            const input = InMemoryProject.of({
+                path: fileOfInterest, content: `
+        function thinger() {
+            return "something about your context";
+        }\n`,
+            });
+
+            const original: Requirement = new AddParameterRequirement({
+                functionWithAdditionalParameter: {
+                    name: "thinger",
+                    filePath: fileOfInterest,
+                    access: { kind: "PrivateFunctionAccess" },
+                },
+                parameterType: {
+                    kind: "local", name: "HandlerContext", localPath: "../HandlerContext.ts",
+                    externalPath: "@atomist/automation-client",
+                },
+                parameterName: "context",
+                populateInTests: {
+                    dummyValue: "{}",
+                },
+            });
+
+            changesetForRequirement(input, original)
+                .then(cs => cs.requirements) // in the same changeset
+                .then(consequences => {
+                    const amr = consequences.find(c => isAddMigrationRequirement(c)) as AddMigrationRequirement;
+                    assert(!amr);
+                })
+                .then(() => done(), done);
+
+        });
+
+        it("Locates the import path for the downstream project to use");
+
+        it("Produces a migration for a public method in a public class");
+
+        it("Does not produce a migration for a private method");
     });
-
-    it("Does not produce a migration for a private function");
-
-    it("Produces a migration for a public method in a public class");
-
-    it("Does not produce a migration for a private method");
 
     describe("properties of enclosing functions", () => {
 
@@ -602,7 +639,7 @@ describe("detection of consequences", () => {
         }))
             .then(allRequirements)
             .then(consequences => {
-                assert.equal(consequences.length, 7, stringify(consequences));
+                assert.equal(consequences.length, 9, stringify(consequences));
             })
             .then(() => done(), done);
     });
@@ -632,7 +669,7 @@ describe("detection of consequences", () => {
                 assert(addParameterAtEvenHigherLevel);
 
                 assert.equal(consequences.length,
-                    15, // plausible
+                    18, // plausible
                     stringify(consequences, null, 2));
             })
             .then(() => done(), done);
@@ -898,7 +935,7 @@ describe("Adding a parameter", () => {
             return printStructureOfFile(input, fileOfInterest).then(() =>
                 findMatches(input, TypeScriptES6FileParser, "src/Classy.ts",
                     "//ClassDeclaration[/Identifier[@value='Classy']]//MethodDeclaration[/Identifier[@value='giveMeYourContext']]"))
-                .then( m => logger.info("found " + m.length));
+                .then(m => logger.info("found " + m.length));
         }).then(() => input.flush())
             .then(() => {
                 const after = input.findFileSync(fileOfInterest).getContentSync();
