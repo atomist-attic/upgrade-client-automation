@@ -102,11 +102,11 @@ function getAllMatches(r: RegExp, s: string): string[] {
     return output;
 }
 
-describe("actually run it", () => {
+describe.skip("actually run it", () => {
 
     // question: how can I turn off debug output?
 
-    it.skip("just run it", done => {
+    it("just run it", done => {
         (logger as any).level = "info";
 
         const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("automation-client",
@@ -140,5 +140,5 @@ describe("actually run it", () => {
                 logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));
             })
             .then(() => done(), done);
-    });//.timeout(1000000);
+    }).timeout(1000000);
 });

@@ -2,6 +2,7 @@
 import { Requirement } from "./TypescriptEditing";
 import { Project } from "@atomist/automation-client/project/Project";
 import { Report, reportImplemented } from "./Report";
+import { logger } from "@atomist/automation-client";
 
 export class AddMigrationRequirement extends Requirement {
     public kind: "Add Migration Requirement" = "Add Migration Requirement";
@@ -12,6 +13,10 @@ export class AddMigrationRequirement extends Requirement {
 
     public implement(project: Project) {
         return applyAddMigration(project, this);
+    }
+
+    public describe() {
+        return "migration for " + this.downstreamRequirement.describe();
     }
 }
 
@@ -24,7 +29,20 @@ function applyAddMigration(project: Project, requirement: AddMigrationRequiremen
 
     return getCurrentVersion(project)
         .then(v => project.addFile(`migration/${v}/${name}.json`, JSON.stringify(requirement.downstreamRequirement)))
-        .then(() => reportImplemented(requirement));
+        .then(() => addBreakingChangeToChangelog(project, requirement.downstreamRequirement.describe()))
+        .then(() => reportImplemented(requirement))
+}
+
+function addBreakingChangeToChangelog(project: Project, description: string) {
+    logger.info("Adding to changelog: " + description);
+    return project.findFile("CHANGELOG.md").then(f => f.getContent()
+        .then(content => f.setContent(addBreakingChange(description, content))))
+        .catch( noChangelog => logger.warn("Error updating changelog: " + noChangelog))
+}
+
+function addBreakingChange(description: string, content: string): string {
+    const putThemHere = /^### Changed/m;
+    return content.replace(putThemHere, "### Changed\n**Breaking** " + description)
 }
 
 function getCurrentVersion(project: Project): Promise<string> {

@@ -16,7 +16,7 @@ export function upgradeDownstream(library: Project, downstream: GitProject,
     return getCurrentVersion(downstream)
         .then(downstreamVersion => gatherRequirements(downstreamVersion, library))
         .then(upgradeRequirements => upgrade(upgradeRequirements, downstream,
-             commitDangit));
+             commitDangit))
 }
 
 function getCurrentVersion(project: Project): Promise<string> {
@@ -51,7 +51,7 @@ function upgrade(applyAll: Requirement[], project: GitProject,
                  commitDangit: (project: GitProject) => (r1: Changeset, report: Report) => Promise<void>) {
     return sequence(project, applyAll, commitDangit)
         .then(report => {
-            logger.info("Final report: " + stringify(report));
+            logger.info("Final report: " + stringify(report, null, 2));
             return report;
         });
 }

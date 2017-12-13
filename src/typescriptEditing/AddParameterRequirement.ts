@@ -25,7 +25,7 @@ import {
 } from "./functionCallIdentifier";
 import { PassArgumentRequirement } from "./PassArgumentRequirement";
 import { PassDummyInTestsRequirement } from "./PassDummyInTestRequirement";
-import { Report, reportImplemented, reportUnimplemented } from "./Report";
+import { emptyReport, Report, reportImplemented, reportUnimplemented } from "./Report";
 
 export class AddParameterRequirement extends Requirement {
     public readonly kind: "Add Parameter" = "Add Parameter";
@@ -37,6 +37,7 @@ export class AddParameterRequirement extends Requirement {
         dummyValue: string;
         additionalImport?: ImportIdentifier;
     };
+    public readonly external: boolean;
 
     constructor(params: {
         functionWithAdditionalParameter: FunctionCallIdentifier,
@@ -46,6 +47,7 @@ export class AddParameterRequirement extends Requirement {
             dummyValue: string;
             additionalImport?: ImportIdentifier;
         },
+        external?: boolean
         why?: any,
     }) {
         super(params.why);
@@ -53,6 +55,7 @@ export class AddParameterRequirement extends Requirement {
         this.parameterType = params.parameterType;
         this.parameterName = params.parameterName;
         this.populateInTests = params.populateInTests;
+        this.external = params.external || false;
     }
 
     public sameRequirement(other: Requirement): boolean {
@@ -90,6 +93,7 @@ export class AddParameterRequirement extends Requirement {
             parameterType: downstreamParameterType,
             parameterName: this.parameterName,
             populateInTests: this.populateInTests,
+            external: true,
         });
     }
 
@@ -120,7 +124,7 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
             dummyValue: requirement.populateInTests.dummyValue,
             additionalImport: requirement.populateInTests.additionalImport,
         })) : emptyConsequences;
-    const externalConsequences = requirement.isExternallyFacing() ?
+    const externalConsequences = requirement.isExternallyFacing() && !requirement.external ?
         concomitantChange(new AddMigrationRequirement(requirement.downstream(project), requirement))
         : emptyConsequences;
     const globalConsequences = combineConsequences(testConsequences, externalConsequences);
@@ -159,7 +163,7 @@ export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: identifier.$value,
-            why: requirement,
+            why: requirement.describe(),
         });
         return concomitantChange(instruction);
     } else {
@@ -170,20 +174,23 @@ export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
             enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             argumentValue: requirement.parameterName,
-            why: requirement,
+            why: requirement.describe(),
         });
         const newParameterForMe: AddParameterRequirement = new AddParameterRequirement({
             functionWithAdditionalParameter: functionCallIdentifierFromTreeNode(enclosingFunction),
             parameterType: requirement.parameterType,
             parameterName: requirement.parameterName,
             populateInTests: requirement.populateInTests,
-            why: passArgument,
+            why: passArgument.describe(),
         });
         return { concomitantChanges: [passArgument], prerequisiteChanges: [newParameterForMe] };
     }
 }
 
 function implementAddParameter(project: Project, requirement: AddParameterRequirement): Promise<Report> {
+    if (requirement.external) {
+        return Promise.resolve(emptyReport);
+    }
     return addImport(project,
         requirement.functionWithAdditionalParameter.filePath,
         requirement.parameterType)
