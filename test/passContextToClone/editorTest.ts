@@ -9,44 +9,14 @@ import * as assert from "power-assert";
 import { passContextToFunction } from "../../src/passContextToClone/editor";
 import { Changeset, describeChangeset } from "../../src/typescriptEditing/Changeset";
 import { Report } from "../../src/typescriptEditing/Report";
+import { ImportIdentifier } from "../../src/typescriptEditing/addImport";
+import { applyRequirement } from "../../src/typescriptEditing/editor";
+import { AddParameterRequirement } from "../../src/typescriptEditing/AddParameterRequirement";
 
 const packageJson = { path: "package.json",
     content: `{ "name": "@atomist/automation-client", "version": "0.5.0" }`};
 
 describe("editor to pass the context into the cloned method", () => {
-    it("sends a dummy context into tests, with just enough populated", done => {
-
-        const OldTestCode = `
-    const getAClone = (repoName: string = RepoName) => {
-        const repositoryThatExists = new GitHubRepoRef(Owner, repoName);
-        return GitCommandGitProject.cloned(Creds, repositoryThatExists);
-    };
-
-    it("does another thing", () => {
-       GitCommandGitProject.cloned({ token: "yeah" }, whatever, more, things)
-    });
-`;
-
-        const input = InMemoryProject.of(packageJson,
-            { path: "test/something.ts", content: OldTestCode });
-        passContextToFunction({
-            enclosingScope: {
-                kind: "class around method",
-                name: "GitCommandGitProject",
-                exported: true,
-            },
-            name: "cloned", filePath: "src/project/git/GitCommandGitProject.ts",
-            access: { kind: "PublicFunctionAccess" },
-        })(input)
-            .then(report => input.findFile("test/something.ts"))
-            .then(f => f.getContent())
-            .then(newTestCode => {
-                const wanted = /cloned\({} as HandlerContext,/g;
-                const m = getAllMatches(wanted, newTestCode);
-                assert.equal(m.length, 2, newTestCode);
-            }).then(() => done(), done);
-    });
-
     it("detects context in the calling function", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/typescriptEditing/resources/before");
@@ -59,12 +29,27 @@ describe("editor to pass the context into the cloned method", () => {
 
         const functionWeWant = "giveMeYourContext";
 
-        passContextToFunction({
-            enclosingScope: { kind: "enclosing namespace", name: "InHere", exported: true },
-            name: functionWeWant,
-            filePath: "src/CodeThatUsesIt.ts",
-            access: { kind: "PublicFunctionAccess" },
-        })(mutableProject)
+        const handlerContextType: ImportIdentifier = {
+            kind: "local",
+            name: "HandlerContext",
+            localPath: "src/HandlerContext",
+        };
+        const originalRequirement = new AddParameterRequirement({
+            functionWithAdditionalParameter: {
+                enclosingScope: { kind: "enclosing namespace", name: "InHere", exported: true },
+                name: functionWeWant,
+                filePath: "src/CodeThatUsesIt.ts",
+                access: { kind: "PublicFunctionAccess" }},
+            parameterType: handlerContextType,
+            parameterName: "context",
+            populateInTests: {
+                dummyValue: "{} as HandlerContext",
+                additionalImport: handlerContextType,
+            },
+            why: "I want to use the context in here",
+        });
+
+        applyRequirement(originalRequirement)(mutableProject)
             .then(report => {
                 const modified = mutableProject.findFileSync("src/AdditionalFileThatUsesStuff.ts").getContentSync();
 
@@ -80,9 +65,9 @@ describe("editor to pass the context into the cloned method", () => {
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
                 logger.info(modified);
-                assert.equal(report.addParameterReport.unimplemented.length, 0,
-                    stringify(report.addParameterReport.unimplemented, null, 2));
-                assert.equal(report.addParameterReport.implemented.length, 15,
+                assert.equal(report.unimplemented.length, 0,
+                    stringify(report.unimplemented, null, 2));
+                assert.equal(report.implemented.length, 15,
                     stringify(report, null, 2));
                 assert.equal(modified, expected, modified);
             }).then(() => done(), done);
@@ -129,12 +114,7 @@ describe.skip("actually run it", () => {
         //     })
         //         })
         //     .then(() =>
-        passContextToFunction({
-            enclosingScope: { kind: "class around method", name: "GitCommandGitProject", exported: true },
-            name: "cloned",
-            filePath: "src/project/git/GitCommandGitProject.ts",
-            access: { kind: "PublicFunctionAccess" },
-        }, commitDangit)(realProject)
+        passContextToFunction(commitDangit)(realProject)
             .then(report => {
                 logger.info("implemented: " + stringify(report.addParameterReport.implemented, null, 1));
                 logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));

@@ -1003,9 +1003,9 @@ function printMatch(m: TreeNode): string[] {
 
 // wishlist: a replacer that would let me print MatchResults, without printing sourceFile every time
 
-describe("actually run it", () => {
+describe.skip("actually run it", () => {
 
-    it.skip("will add this parameter in this other project", done => {
+    it("will add this parameter in this other project", done => {
         (logger as any).level = "info";
 
         const realProject = GitCommandGitProject.fromProject(new NodeFsLocalProject("tslint",
@@ -1036,5 +1036,5 @@ describe("actually run it", () => {
                 });
         })
             .then(() => done(), done);
-    }); //.timeout(1000000);
+    }).timeout(1000000);
 });

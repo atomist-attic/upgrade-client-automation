@@ -36,8 +36,6 @@ export function sameRequirement(r1: Requirement, r2: Requirement): boolean {
 
 }
 
-export type PathExpression = string;
-
 export function describeRequirement(r: Requirement): string {
         return r.describe();
 }
