@@ -2,11 +2,19 @@
 import { Project } from "@atomist/automation-client/project/Project";
 import { ImportIdentifier } from "../typescriptEditing/addImport";
 import { AddParameterRequirement } from "../typescriptEditing/AddParameterRequirement";
-import { addParameterEdit, MySpecialEditReport, PerChangesetFunction } from "../typescriptEditing/editor";
+import { applyRequirement, PerChangesetFunction } from "../typescriptEditing/editor";
 import { FunctionCallIdentifier } from "../typescriptEditing/functionCallIdentifier";
+import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
+import * as stringify from "json-stringify-safe";
+import { logger } from "@atomist/automation-client";
+import { Report } from "../typescriptEditing/Report";
 
 const doNothing = () => Promise.resolve();
 
+
+export interface MySpecialEditReport extends EditResult {
+    addParameterReport: Report;
+}
 export function passContextToFunction(params: FunctionCallIdentifier,
                                       betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
     return (p: Project) => {
@@ -26,6 +34,13 @@ export function passContextToFunction(params: FunctionCallIdentifier,
             why: "I want to use the context in here",
         });
 
-        return addParameterEdit(originalRequirement, betweenChangesets)(p);
+        return applyRequirement(originalRequirement, betweenChangesets)(p)
+            .then(report => {
+                logger.info("Report: " + stringify(report, null, 2));
+                return {
+                    ...successfulEdit(p, report.implemented.length > 0),
+                    addParameterReport: report,
+                };
+            });
     };
 }

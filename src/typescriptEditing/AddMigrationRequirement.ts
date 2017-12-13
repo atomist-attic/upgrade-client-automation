@@ -23,7 +23,7 @@ function applyAddMigration(project: Project, requirement: AddMigrationRequiremen
     const name = requirement.describe().replace(/[^A-Za-z0-9]/g, "-");
 
     return getCurrentVersion(project)
-        .then(v => project.addFile(`migration/${v}/${name}.json`, JSON.stringify(requirement)))
+        .then(v => project.addFile(`migration/${v}/${name}.json`, JSON.stringify(requirement.downstreamRequirement)))
         .then(() => reportImplemented(requirement));
 }
 

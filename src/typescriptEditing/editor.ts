@@ -14,24 +14,19 @@
  * limitations under the License.
  */
 import { logger } from "@atomist/automation-client";
-import { EditResult, successfulEdit } from "@atomist/automation-client/operations/edit/projectEditor";
 import { Project } from "@atomist/automation-client/project/Project";
-import * as stringify from "json-stringify-safe";
 import * as _ from "lodash";
 
 import { Changeset, describeChangeset } from "./Changeset";
 import { combine, emptyReport, Report } from "./Report";
 import { changesetForRequirement, Requirement } from "./TypescriptEditing";
 
-export interface MySpecialEditReport extends EditResult {
-    addParameterReport: Report;
-}
 
 export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>;
 const doNothing = () => Promise.resolve();
 
-export function addParameterEdit(originalRequirement: Requirement,
-                                 betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
+export function applyRequirement(originalRequirement: Requirement,
+                                 betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<Report> {
 
     return (p: Project) => {
         return changesetForRequirement(p, originalRequirement)
@@ -48,13 +43,6 @@ export function addParameterEdit(originalRequirement: Requirement,
             })
             .then(changesets =>
                 implementChangesets(p, changesets, betweenChangesets))
-            .then(report => {
-                logger.info("Report: " + stringify(report, null, 2));
-                return {
-                    ...successfulEdit(p, report.implemented.length > 0),
-                    addParameterReport: report,
-                };
-            });
     };
 }
 

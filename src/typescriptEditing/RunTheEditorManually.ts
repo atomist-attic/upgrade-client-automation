@@ -3,8 +3,8 @@ import { GitCommandGitProject } from "@atomist/automation-client/project/git/Git
 import { NodeFsLocalProject } from "@atomist/automation-client/project/local/NodeFsLocalProject";
 import * as stringify from "json-stringify-safe";
 import { Changeset, describeChangeset } from "./Changeset";
-import { passContextToFunction } from "./editor";
 import { Report } from "./Report";
+import { passContextToFunction } from "../passContextToClone/editor";
 
 // run with ts-node
 

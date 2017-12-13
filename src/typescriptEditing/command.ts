@@ -3,11 +3,10 @@ import {
     Secrets,
 } from "@atomist/automation-client";
 import { GitHubRepoRef } from "@atomist/automation-client/operations/common/GitHubRepoRef";
-import { GitHubNameRegExp } from "@atomist/automation-client/operations/common/params/gitHubPatterns";
 import { editOne } from "@atomist/automation-client/operations/edit/editAll";
 import { EditMode, PullRequest } from "@atomist/automation-client/operations/edit/editModes";
 import stringify = require("json-stringify-safe");
-import { MySpecialEditReport, passContextToFunction } from "./editor";
+import { MySpecialEditReport, passContextToFunction } from "../passContextToClone/editor";
 
 const saveUpgradeToGitHub: EditMode = new PullRequest("upgrade-to-0-5",
     "Pass context in to anything that clones");

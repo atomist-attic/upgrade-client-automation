@@ -18,7 +18,7 @@ import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemory
 import * as stringify from "json-stringify-safe";
 import "mocha";
 import * as assert from "power-assert";
-import { addParameterEdit } from "../../src/typescriptEditing/editor";
+import { applyRequirement } from "../../src/typescriptEditing/editor";
 
 import { logger } from "@atomist/automation-client";
 import { GitCommandGitProject } from "@atomist/automation-client/project/git/GitCommandGitProject";
@@ -1029,10 +1029,10 @@ describe("actually run it", () => {
                 why: "so I can get file contents from github",
             });
 
-            return addParameterEdit(originalRequirement, commitDangit)(realProject)
+            return applyRequirement(originalRequirement, commitDangit)(realProject)
                 .then(report => {
-                    logger.info("implemented: " + stringify(report.addParameterReport.implemented, null, 1));
-                    logger.info("UNimplementED: " + stringify(report.addParameterReport.unimplemented, null, 2));
+                    logger.info("implemented: " + stringify(report.implemented, null, 1));
+                    logger.info("UNimplementED: " + stringify(report.unimplemented, null, 2));
                 });
         })
             .then(() => done(), done);
