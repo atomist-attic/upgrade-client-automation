@@ -10,6 +10,9 @@ import { passContextToFunction } from "../../src/passContextToClone/editor";
 import { Changeset, describeChangeset } from "../../src/typescriptEditing/Changeset";
 import { Report } from "../../src/typescriptEditing/Report";
 
+const packageJson = { path: "package.json",
+    content: `{ "name": "@atomist/automation-client", "version": "0.5.0" }`};
+
 describe("editor to pass the context into the cloned method", () => {
     it("sends a dummy context into tests, with just enough populated", done => {
 
@@ -24,7 +27,8 @@ describe("editor to pass the context into the cloned method", () => {
     });
 `;
 
-        const input = InMemoryProject.of({ path: "test/something.ts", content: OldTestCode });
+        const input = InMemoryProject.of(packageJson,
+            { path: "test/something.ts", content: OldTestCode });
         passContextToFunction({
             enclosingScope: {
                 kind: "class around method",
@@ -46,7 +50,7 @@ describe("editor to pass the context into the cloned method", () => {
     it("detects context in the calling function", done => {
         const thisProject = new NodeFsLocalProject("automation-client",
             appRoot.path + "/test/typescriptEditing/resources/before");
-        const mutableProject = InMemoryProject.of(
+        const mutableProject = InMemoryProject.of(packageJson,
             thisProject.findFileSync("src/CodeThatUsesIt.ts"),
             thisProject.findFileSync("src/AdditionalFileThatUsesStuff.ts"));
 
@@ -76,10 +80,9 @@ describe("editor to pass the context into the cloned method", () => {
                 const expected = resultProject.findFileSync("src/CodeThatUsesIt.ts").getContentSync();
 
                 logger.info(modified);
-                // When AddMigration is implemented, set this 3 to 0
-                assert.equal(report.addParameterReport.unimplemented.length, 3,
+                assert.equal(report.addParameterReport.unimplemented.length, 0,
                     stringify(report.addParameterReport.unimplemented, null, 2));
-                assert.equal(report.addParameterReport.implemented.length, 12,
+                assert.equal(report.addParameterReport.implemented.length, 15,
                     stringify(report, null, 2));
                 assert.equal(modified, expected, modified);
             }).then(() => done(), done);

@@ -19,10 +19,9 @@ import { Project } from "@atomist/automation-client/project/Project";
 import * as stringify from "json-stringify-safe";
 import * as _ from "lodash";
 
-import { AddParameterRequirement } from "./AddParameterRequirement";
 import { Changeset, describeChangeset } from "./Changeset";
 import { combine, emptyReport, Report } from "./Report";
-import * as TypescriptEditing from "./TypescriptEditing";
+import { changesetForRequirement, Requirement } from "./TypescriptEditing";
 
 export interface MySpecialEditReport extends EditResult {
     addParameterReport: Report;
@@ -31,11 +30,11 @@ export interface MySpecialEditReport extends EditResult {
 export type PerChangesetFunction = (changeset: Changeset, report: Report) => Promise<void>;
 const doNothing = () => Promise.resolve();
 
-export function addParameterEdit(originalRequirement: AddParameterRequirement,
+export function addParameterEdit(originalRequirement: Requirement,
                                  betweenChangesets: PerChangesetFunction = doNothing): (p: Project) => Promise<MySpecialEditReport> {
 
     return (p: Project) => {
-        return TypescriptEditing.changesetForRequirement(p, originalRequirement)
+        return changesetForRequirement(p, originalRequirement)
             .then(changesetTree => {
                 // man, I wish I could find my TreePrinter
                 logger.info(describeChangeset(changesetTree));
@@ -72,10 +71,10 @@ function linearizeChangesets(top: Changeset): Changeset[] {
     }
 }
 
-function implementInSequenceWithFlushes(project: Project, activities: TypescriptEditing.Requirement[]) {
+function implementInSequenceWithFlushes(project: Project, activities: Requirement[]) {
     return activities.reduce(
-        (pp: Promise<Report>, r1: TypescriptEditing.Requirement) => pp
-            .then(allTheReportsFromBefore => TypescriptEditing.implement(project, r1)
+        (pp: Promise<Report>, r1: Requirement) => pp
+            .then(allTheReportsFromBefore => r1.implement(project)
                 .then(report1 => project.flush()
                     .then(() => combine(allTheReportsFromBefore, report1)))),
         Promise.resolve(emptyReport));
