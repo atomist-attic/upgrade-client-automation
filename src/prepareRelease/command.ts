@@ -82,3 +82,16 @@ function runGitLog(p: Project, oldVersion: string): Promise<string[]> {
         return Promise.resolve([]);
     }
 }
+
+type NpmVersionIncrement = "major" | "minor" | "patch"
+
+function runNpmVersion(p: Project, increment: NpmVersionIncrement): Promise<string[]> {
+    if (isLocalProject(p)) {
+        return runCommand(`npm version ${increment}`, { cwd: p.baseDir })
+            .then(result => result.stdout.split("\n"));
+    } else {
+        logger.warn("Unable to run npm version on a nonlocal project");
+        return Promise.resolve([]);
+    }
+}
+

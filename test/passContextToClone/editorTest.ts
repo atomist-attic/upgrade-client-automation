@@ -89,8 +89,6 @@ function getAllMatches(r: RegExp, s: string): string[] {
 
 describe.skip("actually run it", () => {
 
-    // question: how can I turn off debug output?
-
     it("just run it", done => {
         (logger as any).level = "info";
 
@@ -105,15 +103,7 @@ describe.skip("actually run it", () => {
             return realProject.commit(describeChangeset(r1)).then(() => Promise.resolve());
         }
 
-        // printStructureOfFile(realProject, "src/project/git/GitCommandGitProject.ts")
-        //     .then(() =>   {
-        //
-        //     return findMatches(realProject, TypeScriptES6FileParser, "src/project/git/GitCommandGitProject.ts",
-        //         "//ClassDeclaration[/Identifier[@value='GitCommandGitProject']]").then(m => {
-        //             logger.info("matches: " + m.length)
-        //     })
-        //         })
-        //     .then(() =>
+
         passContextToFunction(commitDangit)(realProject)
             .then(report => {
                 logger.info("implemented: " + stringify(report.addParameterReport.implemented, null, 1));
