@@ -14,10 +14,10 @@ export function populateChangelog(nextVersion: string, releaseDate: string, comm
             .then(() => successfulEdit(p, true));
 }
 
-const BoringCommitSummaries = ["lint", "Automatic de-linting"];
+const BoringCommitSummaries = [/^lint$/, /^Automatic de-linting/, /[mM]erge pull request/];
 
 function looksNontrivial(commitSummary: string): boolean {
-    return !BoringCommitSummaries.includes(commitSummary);
+    return !BoringCommitSummaries.some(r => !!commitSummary.match(r));
 }
 
 function looksLikeFix(commitSummary: string): boolean {
