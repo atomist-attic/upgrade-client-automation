@@ -2,11 +2,14 @@ import { commandHandlerFrom, OnCommand } from "@atomist/automation-client/onComm
 import { HandleCommand, HandlerContext } from "@atomist/automation-client";
 import { BaseEditorOrReviewerParameters, } from "@atomist/automation-client/operations/common/params/BaseEditorOrReviewerParameters";
 import { CommandHandlerMetadata, } from "@atomist/automation-client/metadata/automationMetadata";
-import { updateScript } from "./editor";
+import { UpdateJsonFunction, updatePackageJson, updateScript } from "./editor";
 import { chainEditors } from "@atomist/automation-client/operations/edit/projectEditorOps";
 import { guid } from "@atomist/automation-client/internal/util/string";
 import {
-    cloneTargetProject, dmTheAdmin, MappedRepositoryTargetParameters,
+    cloneTargetProject,
+    commitIfEdited,
+    dmTheAdmin,
+    MappedRepositoryTargetParameters,
     respondToActionResult,
 } from "./repositoryOperationsInfra";
 
@@ -16,12 +19,12 @@ const handleUpdateNpmScripts: OnCommand<MappedRepositoryTargetParameters> = (con
                                                                              params: MappedRepositoryTargetParameters) => {
 
     const useDoubleQuotesForWindows = chainEditors(
-        updateScript("test",
-            "mocha --require espower-typescript/guess 'test/**/*.ts'",
-            "mocha --require espower-typescript/guess \"test/**/*.ts\""),
         updateScript("gql:gen",
             "mocha --require espower-typescript/guess 'test/**/*.ts'",
-            "mocha --require espower-typescript/guess \"test/**/*.ts\""));
+            "mocha --require espower-typescript/guess \"test/**/*.ts\""),
+        updateScript("test",
+            "mocha --require espower-typescript/guess 'test/**/*.ts'",
+            "mocha --require espower-typescript/guess \"test/**/*.ts\""),);
 
     const branchName = "update-npm-scripts-" + guid();
 
@@ -30,15 +33,51 @@ const handleUpdateNpmScripts: OnCommand<MappedRepositoryTargetParameters> = (con
         .then(respondToActionResult)
         .then(project => project.checkout(branchName))
         .then(respondToActionResult)
+
         .then(project => useDoubleQuotesForWindows(project, context))
+        .then(editResult => commitIfEdited(editResult, "Work on Windows: use double quotes around some fileglobs"))
         .then(respondToActionResult)
-        .then(project => project.commit("Work on Windows: use double quotes around some fileglobs"))
+        .then(project => useAtomistStart(project, context))
+        .then(editResult => commitIfEdited(editResult, "Use 'atomist start'; 'atomist-client' is deprecated"))
         .then(respondToActionResult)
+        .then(project => useAtomistGit(project, context))
+        .then(editResult => commitIfEdited(editResult, "Use 'atomist git'; 'git-info' is deprecated"))
+        .then(respondToActionResult)
+
         .then(project => project.push())
         .then(respondToActionResult)
         .then(project => project.raisePullRequest("Update NPM Scripts", "match the latest in atomist/automation-seed-ts"))
         .then(respondToActionResult)
         .then(() => reportSuccess(context, params, branchName), error => reportFailure(context, params, error))
+};
+
+const useAtomistStart = updatePackageJson((json) => {
+    if (json.scripts["start"].includes("atomist start")) {
+        return false;
+    }
+    // if we were previously compiling with start, keep doing it
+    if (json.scripts["start"].includes("compile")) {
+        json.scripts["start"] = "atomist start";
+    } else {
+        // otherwise, make it work in a container
+        json.scripts["start"] = "atomist start --no-install --no-compile";
+    }
+    return true;
+});
+
+const useAtomistGit = updatePackageJson(replaceInAllScripts("git-info", "atomist git"));
+
+function replaceInAllScripts(before: string, after: string): UpdateJsonFunction {
+    return (json) => {
+        let changed = false;
+        Object.keys(json.scripts).forEach(k => {
+            if (json.scripts[k].includes(before)) {
+                changed = true;
+                json.scripts[k] = json.scripts[k].replace(before, after);
+            }
+        });
+        return changed;
+    };
 }
 
 function reportSuccess(context: HandlerContext, params: MappedRepositoryTargetParameters, branchName: string) {

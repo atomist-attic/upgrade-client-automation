@@ -11,6 +11,7 @@ import { MappedRepoParameters } from "@atomist/automation-client/operations/comm
 import { Parameters } from "@atomist/automation-client/decorators";
 import * as slack from "@atomist/slack-messages";
 import { configuration } from "../atomist.config";
+import { EditResult } from "@atomist/automation-client/operations/edit/projectEditor";
 
 @Parameters()
 export class CommandInvocationProvenance {
@@ -27,6 +28,15 @@ export class MappedRepositoryTargetParameters extends BaseEditorOrReviewerParame
     constructor() {
         super(new MappedRepoParameters());
         this.provenance = new CommandInvocationProvenance();
+    }
+}
+
+
+export function commitIfEdited(editResult: EditResult, message: string): Promise<ActionResult<GitProject>> {
+    if (editResult.success && editResult.edited) {
+        return (editResult.target as GitProject).commit(message);
+    } else {
+        return Promise.resolve(editResult as EditResult<GitProject>);
     }
 }
 

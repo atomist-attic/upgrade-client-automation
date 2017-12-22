@@ -25,3 +25,37 @@ export function updateScript(scriptName: string, from: string, to: string): Proj
 function formatJson(json: {}): string {
     return JSON.stringify(json, null, 2) + "\n";
 }
+
+// fill this out as we need it, or better, does npm publish a full one?
+export type PackageJson = {
+    name: string,
+    version: string,
+    scripts?: {
+        [key: string]: string;
+    }
+}
+
+// a side-effecting function: return true if you changed it
+export type UpdateJsonFunction = (json: PackageJson) => boolean
+
+export function updatePackageJson(fn: UpdateJsonFunction): ProjectEditor {
+    return (p: Project) => {
+        return p.findFile("package.json")
+            .then(f => f.getContent()
+                .then(content => JSON.parse(content))
+                .then(json => {
+                    try {
+                        if (fn(json)) {
+                            return f.setContent(formatJson(json))
+                                .then(() => successfulEdit(p, true));
+                        } else {
+                            logger.info(`no change`);
+                            return Promise.resolve(successfulEdit(p, false));
+                        }
+                    }
+                    catch (e) {
+                        return Promise.reject(e);
+                    }
+                }));
+    }
+}
