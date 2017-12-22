@@ -13,7 +13,7 @@ describe("the editor updates the npm script", () => {
         const input = InMemoryProject.of({
             path: "package.json",
             content: JSON.stringify({
-                scripts: { "test": oldValue},
+                scripts: { "test": oldValue },
             }),
         });
 
@@ -24,7 +24,7 @@ describe("the editor updates the npm script", () => {
                 assert(JSON.parse(content).scripts.test === newValue)
             })
             .then(() => done(), done);
-    })
+    });
 
     it("does not update if you have changed it", done => {
         const oldValue = "mocha --require espower-typescript/guess 'test/**/*.ts'";
@@ -34,7 +34,7 @@ describe("the editor updates the npm script", () => {
         const input = InMemoryProject.of({
             path: "package.json",
             content: JSON.stringify({
-                scripts: { "test": currentValue},
+                scripts: { "test": currentValue },
             }),
         });
 
@@ -43,6 +43,30 @@ describe("the editor updates the npm script", () => {
                 assert(!editResult.edited);
                 const content = editResult.target.findFileSync("package.json").getContentSync();
                 assert(JSON.parse(content).scripts.test === currentValue)
+            })
+            .then(() => done(), done);
+    })
+
+    it("does not strip the newline", done => {
+        const oldValue = "mocha --require espower-typescript/guess 'test/**/*.ts'";
+        const newValue = "mocha --require espower-typescript/guess \"test/**/*.ts\"";
+
+        const packageJson = `{
+  "scripts": {
+    "test": "${oldValue}"
+  }
+}
+`;
+        const input = InMemoryProject.of({
+            path: "package.json",
+            content: packageJson,
+        });
+
+        updateScript("test", oldValue, newValue)(input, {} as HandlerContext)
+            .then(editResult => {
+                assert(editResult.edited);
+                const content = editResult.target.findFileSync("package.json").getContentSync();
+                assert(content.endsWith("\n"), content)
             })
             .then(() => done(), done);
     })
