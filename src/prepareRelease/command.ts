@@ -24,10 +24,10 @@ const SemanticVersionPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 @CommandHandler("Update the CHANGELOG in preparation for a release", "prepare release")
 export class BeginReleaseParameters {
     @Parameter({
-        pattern: SemanticVersionPattern,
-        description: "Next version, like 1.2.3",
+        pattern: /^(patch|major|minor)$/,
+        description: "version increment: major, minor, or patch",
     })
-    public nextVersion: string;
+    public increment: string;
 
     @MappedParameter(MappedParameters.GitHubRepository)
     public repository: string;
@@ -52,19 +52,30 @@ export class BeginReleaseHandler implements HandleCommand<BeginReleaseParameters
             new GitHubRepoRef(params.owner, params.repository), {}, CachingDirectoryManager);
 
         const releaseDate = formatDate(new Date());
-        const pullRequest = new PullRequest("prep-" + params.nextVersion,
-            "Prepare CHANGELOG for " + params.nextVersion);
 
         return clone.then(project =>
             getLastReleasedVersionFromChangelog(project)
                 .then(oldVersion => runGitLog(project, oldVersion))
-                .then(commitSummaries =>
+                .then(commitSummaries => {
+                    if (params.increment !== "patch") {
+                        return runNpmVersion(project, params.increment as NpmVersionIncrement).then(nextVersion => (
+                            {
+                                nextVersion,
+                                commitSummaries,
+                            }))
+                    } else {
+                        return getCurrentVersion(project);
+                    }
+                })
+                .then(data =>
                     // fetch the log
                     editRepo(context, project,
-                        populateChangelog(params.nextVersion, releaseDate, commitSummaries),
-                        pullRequest)))
-            .catch(err => context.messageClient.respond("Sad day, but I have failed. " + err)
-                .then(() => Promise.reject(err)));
+                        populateChangelog(data.nextVersion, releaseDate, data.commitSummaries),
+                        new PullRequest("prep-" + data.nextVersion,
+                            "Prepare CHANGELOG for " + data.nextVersion)))
+                .catch(err =>
+                    context.messageClient.respond("Sad day, but I have failed. " + err)
+                        .then(() => Promise.reject(err))));
     }
 }
 
@@ -83,15 +94,22 @@ function runGitLog(p: Project, oldVersion: string): Promise<string[]> {
     }
 }
 
+function getCurrentVersion(project: Project) {
+    return project.findFile("package.json")
+        .then(f => f.getContent())
+        .then(content => JSON.parse(content))
+        .then(json => json.version);
+}
+
 type NpmVersionIncrement = "major" | "minor" | "patch"
 
-function runNpmVersion(p: Project, increment: NpmVersionIncrement): Promise<string[]> {
+// return the new version. "1.0.2" for example. the npm process output "v1.0.2" so strip the v
+function runNpmVersion(p: Project, increment: NpmVersionIncrement): Promise<string> {
     if (isLocalProject(p)) {
         return runCommand(`npm version ${increment}`, { cwd: p.baseDir })
-            .then(result => result.stdout.split("\n"));
+            .then(result => result.stdout.trim().replace(/^v/, ""));
     } else {
-        logger.warn("Unable to run npm version on a nonlocal project");
-        return Promise.resolve([]);
+        return Promise.reject("Unable to run npm version on a nonlocal project");
     }
 }
 
