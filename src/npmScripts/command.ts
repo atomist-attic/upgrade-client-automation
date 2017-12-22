@@ -20,8 +20,8 @@ const handleUpdateNpmScripts: OnCommand<MappedRepositoryTargetParameters> = (con
 
     const useDoubleQuotesForWindows = chainEditors(
         updateScript("gql:gen",
-            "mocha --require espower-typescript/guess 'test/**/*.ts'",
-            "mocha --require espower-typescript/guess \"test/**/*.ts\""),
+            "gql-gen --file node_modules/@atomist/automation-client/graph/schema.cortex.json --template typescript -m --out ./src/typings/ './graphql/**/*.graphql'",
+            "gql-gen --file node_modules/@atomist/automation-client/graph/schema.cortex.json --template typescript -m --out ./src/typings/ \"./graphql/**/*.graphql\""),
         updateScript("test",
             "mocha --require espower-typescript/guess 'test/**/*.ts'",
             "mocha --require espower-typescript/guess \"test/**/*.ts\""),);
