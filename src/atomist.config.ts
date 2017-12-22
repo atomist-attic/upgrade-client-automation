@@ -18,6 +18,7 @@ import { Configuration } from "@atomist/automation-client/configuration";
 import * as appRoot from "app-root-path";
 import { BeginReleaseHandler } from "./prepareRelease/command";
 import { UpgradeTo0_5 } from "./typescriptEditing/command";
+import { updateNpmScripts } from "./npmScripts/command";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -27,10 +28,11 @@ const token = process.env.GITHUB_TOKEN;
 export const configuration: Configuration = {
     name: pj.name,
     version: pj.version,
-    teamIds: ["T29E48P34"], // <-- run @atomist pwd in your slack team to obtain the team id
+    teamIds: ["T29E48P34"], // atomist-community
     commands: [
         BeginReleaseHandler,
         () => new UpgradeTo0_5(),
+        updateNpmScripts,
     ],
     token,
     http: {
