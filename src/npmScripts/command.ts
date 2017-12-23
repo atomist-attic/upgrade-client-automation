@@ -13,7 +13,7 @@ import {
     respondToActionResult,
 } from "./repositoryOperationsInfra";
 
-const commandName = "UpdateNpmScripts";
+export const commandName = "UpdateNpmScripts";
 
 const handleUpdateNpmScripts: OnCommand<MappedRepositoryTargetParameters> = (context: HandlerContext,
                                                                              params: MappedRepositoryTargetParameters) => {

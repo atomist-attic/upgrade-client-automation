@@ -19,6 +19,7 @@ import * as appRoot from "app-root-path";
 import { BeginReleaseHandler } from "./prepareRelease/command";
 import { UpgradeTo0_5 } from "./typescriptEditing/command";
 import { updateNpmScripts } from "./npmScripts/command";
+import { findAutomationClientsCommand } from "./findAutomations/command";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -33,6 +34,7 @@ export const configuration: Configuration = {
         BeginReleaseHandler,
         () => new UpgradeTo0_5(),
         updateNpmScripts,
+        () => findAutomationClientsCommand
     ],
     token,
     http: {

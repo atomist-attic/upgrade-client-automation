@@ -30,6 +30,9 @@ function formatJson(json: {}): string {
 export type PackageJson = {
     name: string,
     version: string,
+    dependencies?: {
+        [key: string]: string;
+    }
     scripts?: {
         [key: string]: string;
     }

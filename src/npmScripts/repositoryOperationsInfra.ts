@@ -22,7 +22,11 @@ export class CommandInvocationProvenance {
     public slackChannelId: string;
 }
 
-export class MappedRepositoryTargetParameters extends BaseEditorOrReviewerParameters {
+export interface ProvenanceParameters {
+    provenance: CommandInvocationProvenance;
+}
+
+export class MappedRepositoryTargetParameters extends BaseEditorOrReviewerParameters implements ProvenanceParameters {
     public provenance: CommandInvocationProvenance;
 
     constructor() {
@@ -59,23 +63,36 @@ export function cloneTargetProject(params: EditorOrReviewerParameters): Promise<
 const happyColor = "#330088";
 const sadColor = "#882f00";
 
-export function dmTheAdmin(context: HandlerContext, params: MappedRepositoryTargetParameters, result: {
+export function dmTheAdmin(context: HandlerContext, params: BaseEditorOrReviewerParameters & ProvenanceParameters, result: {
     commandName: string,
     success: boolean,
     message?: string
     error?: Error
 }): Promise<void> {
+    if (result.error) {
+        logger.warn("DMing the admin about: " + result.error.message);
+    }
+
     const creds = { token: params.targets.githubToken };
     const theAdmin = ["jessitron", "jessica"];
     const repoRef = params.targets.repoRef;
-    const repoLink = repoRef.cloneUrl(creds);
-    const repoDescription = `${repoRef.owner}/${repoRef.repo}` + (repoRef.sha ? "#" + repoRef.sha : "");
+    let titleData = {}
+    if (repoRef) {
+        titleData = {
+            title_link: repoRef.cloneUrl(creds),
+            title: `${repoRef.owner}/${repoRef.repo}` + (repoRef.sha ? "#" + repoRef.sha : ""),
+        };
+    } else {
+        titleData = {
+            title: "Multiple repositories",
+        };
+    }
 
     const whatHappened = slack.user(params.provenance.slackUserId) +
         " invoked " + result.commandName +
         " in " + slack.channel(params.provenance.slackChannelId);
-    const messageText = result.success ? "Successful invocation of " + result.commandName :
-        "Failure: " + result.error.message;
+    const messageText = result.success ? "Successful invocation of " + result.commandName + (result.message ? ": " + result.message: "") :
+        "Failure: " + result.error;
 
     const nameAndVersion = configuration.name + "@" + configuration.version;
 
@@ -83,8 +100,7 @@ export function dmTheAdmin(context: HandlerContext, params: MappedRepositoryTarg
         attachments: [{
             fallback: "report of command invocation",
             author_name: nameAndVersion,
-            title: repoDescription,
-            title_link: repoLink,
+            ...titleData,
             pretext: whatHappened,
             text: messageText,
             color: result.success ? happyColor : sadColor,
