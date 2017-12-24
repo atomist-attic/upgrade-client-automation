@@ -14,6 +14,7 @@ export function updateScript(scriptName: string, from: string, to: string): Proj
                             .then(() => successfulEdit(p, true));
                     } else if (json.scripts[scriptName] === to) {
                         logger.info("script %s is already up-to-date", scriptName)
+                        return Promise.resolve(successfulEdit(p, false))
                     } else {
                         logger.warn(`Unfamiliar value in package.json scripts[${scriptName}]: ` + json.scripts[scriptName]);
                         return Promise.resolve(successfulEdit(p, false));

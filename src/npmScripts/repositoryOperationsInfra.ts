@@ -71,6 +71,7 @@ export function dmTheAdmin(context: HandlerContext, params: BaseEditorOrReviewer
 }): Promise<void> {
     if (result.error) {
         logger.warn("DMing the admin about: " + result.error.message);
+        logger.warn(result.error.stack);
     }
 
     const creds = { token: params.targets.githubToken };
