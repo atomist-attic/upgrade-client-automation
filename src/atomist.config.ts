@@ -30,6 +30,7 @@ export const configuration: Configuration = {
     name: pj.name,
     version: pj.version,
     teamIds: ["T29E48P34"], // atomist-community
+
     commands: [
         BeginReleaseHandler,
         () => new UpgradeTo0_5(),

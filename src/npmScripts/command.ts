@@ -1,5 +1,5 @@
 import { commandHandlerFrom, OnCommand } from "@atomist/automation-client/onCommand";
-import { HandleCommand, HandlerContext } from "@atomist/automation-client";
+import { HandleCommand, HandlerContext, logger } from "@atomist/automation-client";
 import { BaseEditorOrReviewerParameters, } from "@atomist/automation-client/operations/common/params/BaseEditorOrReviewerParameters";
 import { CommandHandlerMetadata, } from "@atomist/automation-client/metadata/automationMetadata";
 import { UpdateJsonFunction, updatePackageJson, updateScript } from "./editor";
@@ -12,6 +12,7 @@ import {
     MappedRepositoryTargetParameters,
     respondToActionResult,
 } from "./repositoryOperationsInfra";
+import { Project } from "@atomist/automation-client/project/Project";
 
 export const commandName = "UpdateNpmScripts";
 
@@ -37,6 +38,7 @@ const handleUpdateNpmScripts: OnCommand<MappedRepositoryTargetParameters> = (con
         .then(project => useDoubleQuotesForWindows(project, context))
         .then(editResult => commitIfEdited(editResult, "Work on Windows: use double quotes around some fileglobs"))
         .then(respondToActionResult)
+        .then(useAtomistStartInManifest)
         .then(project => useAtomistStart(project, context))
         .then(editResult => commitIfEdited(editResult, "Use 'atomist start'; 'atomist-client' is deprecated"))
         .then(respondToActionResult)
@@ -64,6 +66,24 @@ const useAtomistStart = updatePackageJson((json) => {
     }
     return true;
 });
+
+function useAtomistStartInManifest(project: Project): Promise<Project> {
+    return project.findFile("manifest.yml")
+        .then(manifestFile => manifestFile.getContent()
+            .then(yaml => {
+                const command = yaml.match(/command:(.*)$/m);
+                if (command && command[1].includes("atomist-client")) {
+                    return manifestFile.replace(/command:(.*)$/m, "command: npm start")
+                        .then(() => project);
+                } else {
+                    logger.info("No atomist-client command found in manifest.yml");
+                    return Promise.resolve(project)
+                }
+            }), error => {
+            logger.info("No manifest.yaml to change");
+            return Promise.resolve(project);
+        })
+}
 
 const useAtomistGit = updatePackageJson(replaceInAllScripts("git-info", "atomist git"));
 
