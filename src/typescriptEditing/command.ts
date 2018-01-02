@@ -12,6 +12,7 @@ const saveUpgradeToGitHub: EditMode = new PullRequest("upgrade-to-0-5",
     "Pass context in to anything that clones");
 
 @CommandHandler("Upgrade to 0.5.0, compensating for breaking changes", "pass context to clone")
+// tslint:disable-next-line:class-name
 export class UpgradeTo0_5 implements HandleCommand {
 
     @Secret(Secrets.userToken(["repo", "user"]))
