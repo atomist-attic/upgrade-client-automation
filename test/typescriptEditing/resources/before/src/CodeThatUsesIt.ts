@@ -1,6 +1,7 @@
 
 import { HandlerContext, logger } from "@atomist/automation-client";
 
+// tslint:disable-next-line:no-namespace
 namespace InHere {
     export function giveMeYourContext(otherParams: any) {
         return "says me";
