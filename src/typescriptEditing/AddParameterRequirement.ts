@@ -205,6 +205,7 @@ function implementAddParameter(project: Project, requirement: AddParameterRequir
                             requirement.functionWithAdditionalParameter.filePath);
                         return reportUnimplemented(requirement, "Function declaration not found");
                     } else if (1 < matches.length) {
+// tslint:disable-next-line:max-line-length
                         logger.warn("Doing Nothing; Found more than one function declaration at " + functionDeclarationPathExpression(requirement.functionWithAdditionalParameter));
                         return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.");
                     } else {
