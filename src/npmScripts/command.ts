@@ -23,6 +23,7 @@ const handleUpdateNpmScripts: OnCommand<MappedRepositoryTargetParameters> = (con
         updateScript("gql:gen",
 // tslint:disable-next-line:max-line-length
             "gql-gen --file node_modules/@atomist/automation-client/graph/schema.cortex.json --template typescript -m --out ./src/typings/ './graphql/**/*.graphql'",
+// tslint:disable-next-line:max-line-length
             "gql-gen --file node_modules/@atomist/automation-client/graph/schema.cortex.json --template typescript -m --out ./src/typings/ \"./graphql/**/*.graphql\""),
         updateScript("test",
             "mocha --require espower-typescript/guess 'test/**/*.ts'",
