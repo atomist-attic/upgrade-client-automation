@@ -1,0 +1,20 @@
+query PushForFingerprinting {
+    Push {
+        repo @required {
+            owner
+            name
+            org {
+                provider {
+                    apiUrl
+                    url
+                }
+            }
+        }
+        after {
+            sha
+        }
+        before {
+            sha
+        }
+    }
+}
