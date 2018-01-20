@@ -1,26 +1,18 @@
 import * as GraphQL from "@atomist/automation-client/graph/graphQL";
 import {
-    EventFired,
-    EventHandler,
-    HandleEvent,
-    HandlerContext,
-    HandlerResult,
-    Secret,
-    Secrets,
+    EventFired, EventHandler, HandleEvent, HandlerContext, HandlerResult, Secret, Secrets,
     Tags,
 } from "@atomist/automation-client/Handlers";
 import { logger } from "@atomist/automation-client/internal/util/logger";
-import * as slack from "@atomist/slack-messages/SlackMessages";
-import { configuration } from "../atomist.config";
 import * as graphql from "../typings/types";
 import * as stringify from "json-stringify-safe";
 
-import { Fingerprint, PushFingerprintWorld } from "./fingerprint";
-import * as _ from "lodash";
+import { PushFingerprintWorld } from "./fingerprint";
 import { GitHubFileWorld, RemoteFileLocation } from "./fetchOneFile";
 import { adminChannel } from "../credentials";
 
 export const AutomationClientVersionFingerprintName = "automation-client-version";
+export const NotAnAutomationClient = "NONE";
 
 /**
  * This produces a fingerprint on a commit and passes it back to Atomist.
@@ -60,14 +52,9 @@ export class FingerprintAutomationClientVersion implements HandleEvent<graphql.P
             };
             const plj = await GitHubFileWorld.fetchFileContents(params.githubToken, packageLock, afterSha);
             logger.info("Contents of package-lock: " + plj);
-            if (plj === 404) {
-                return {
-                    code: 0, message:
-                        `no ${AutomationClientVersionFingerprintName} on ${repo.owner}/${repo.name}#${afterSha}`,
-                }
-            }
             const fingerprint = {
-                name: AutomationClientVersionFingerprintName, sha: calculateFingerprint(plj),
+                name: AutomationClientVersionFingerprintName,
+                sha: plj === 404 ? NotAnAutomationClient : calculateFingerprint(plj),
             };
             console.log("Fingerprint: " + stringify(fingerprint));
             await PushFingerprintWorld.pushFingerprint({
@@ -113,11 +100,11 @@ export function calculateFingerprint(jpl: string): string {
 
     if (!json.dependencies) {
         logger.warn("No dependencies member in package-lock.json");
-        return "NONE";
+        return NotAnAutomationClient;
     }
     if (json.dependencies["@atomist/automation-client"]) {
         return json.dependencies["@atomist/automation-client"].version
     } else {
-        return "NONE";
+        return NotAnAutomationClient;
     }
 }

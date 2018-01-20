@@ -9,11 +9,10 @@ import * as graphql from "../../src/typings/types"
 import { guid } from "@atomist/automation-client/internal/util/string";
 import {
     AutomationClientVersionFingerprintName,
-    FingerprintAutomationClientVersion,
+    FingerprintAutomationClientVersion, NotAnAutomationClient,
 } from "../../src/dependencyVersion/FingerprintAutomationClientVersion";
 import * as stringify from "json-stringify-safe";
 import { fakeContext } from "../fakeContext";
-
 
 
 describe("How we know which repositories have which version", () => {
@@ -40,7 +39,29 @@ describe("How we know which repositories have which version", () => {
                     assert(myFingerprint.sha === "0.2.3");
                 })
                 .then(() => done(), done);
-        })
+        });
+
+        it("for projects which are not Node projects, fingerprints: automation-client-version=NONE",
+            done => {
+                const afterSha = randomSha();
+                projectsInTheWorld[afterSha] = nonNodeProject(); // put this in the fake world
+                // and we make a push to it
+                const pushEvent = pushForFingerprinting(afterSha);
+                eventArrives(pushEvent)
+                    .then(handlerResult => {
+                        assert(handlerResult.code === 0, stringify(handlerResult));
+                        // a fingerprint has been pushed
+                        const pushedFingerprint = pushedFingerprints[afterSha];
+                        assert(pushedFingerprint, "Nothing pushed for " + afterSha);
+                        // with the right name
+                        const myFingerprint = pushedFingerprint.fingerprints
+                            .find(f => f.name == AutomationClientVersionFingerprintName);
+                        assert(myFingerprint, "Didn't find it. " + stringify(pushedFingerprint));
+                        // and the right value
+                        assert.equal(myFingerprint.sha, NotAnAutomationClient);
+                    })
+                    .then(() => done(), done);
+            })
     })
 
 });
@@ -60,7 +81,7 @@ function eventArrives(event: graphql.PushForFingerprinting.Query): Promise<any> 
 
 function randomSha() {
     return guid()
-};
+}
 
 const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "tuvalu" };
 
@@ -77,7 +98,12 @@ function automationClientProject(automationClientVersion: string) {
         packageJson(automationClientVersion),
         packageLockJson(automationClientVersion));
     return project;
+}
 
+function nonNodeProject() {
+    const project = InMemoryProject.from(pretendRepo,
+        { path: "README.md", content: "I am not a Node project" });
+    return project;
 }
 
 function packageJson(automationClientVersion: string): { path: "package.json", content: string } {
