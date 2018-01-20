@@ -59,6 +59,7 @@ export class FingerprintAutomationClientVersion implements HandleEvent<graphql.P
                 path: "package-lock.json",
             };
             const plj = await GitHubFileWorld.fetchFileContents(params.githubToken, packageLock, afterSha);
+            logger.info("Contents of package-lock: " + plj);
             if (plj === 404) {
                 return {
                     code: 0, message:
@@ -68,6 +69,7 @@ export class FingerprintAutomationClientVersion implements HandleEvent<graphql.P
             const fingerprint = {
                 name: AutomationClientVersionFingerprintName, sha: calculateFingerprint(plj),
             };
+            console.log("Fingerprint: " + stringify(fingerprint));
             await PushFingerprintWorld.pushFingerprint({
                 provider: provider.url,
                 owner: repo.owner, repo: repo.name, sha: afterSha,
@@ -91,19 +93,30 @@ function providerFromRepo(repo) {
 }
 
 function reportFailure(ctx: HandlerContext,
-                       push: graphql.PushForFingerprinting.Push, error: Error): Promise<HandlerResult> {
+                       push: graphql.PushForFingerprinting.Push,
+                       error: Error): Promise<HandlerResult> {
     const report = `Failure fingerprinting ${push.repo.owner}/${push.repo.name}#${push.after.sha}
 
 ${error.message}
 `;
     return ctx.messageClient.addressChannels(report, adminChannel)
-        .then(() => ({ code: 1, error }))
+        .then(() => ({ code: 1, message: error.message, error }))
 }
 
 export function calculateFingerprint(jpl: string): string {
-    const dependencyOfInterest = JSON.parse(jpl).dependencies["@atomist/automation-client"];
-    if (dependencyOfInterest) {
-        return dependencyOfInterest.version
+    let json;
+    try {
+        json = JSON.parse(jpl)
+    } catch (error) {
+        throw new Error("Could not parse package-lock.json: " + error.message)
+    }
+
+    if (!json.dependencies) {
+        logger.warn("No dependencies member in package-lock.json");
+        return "NONE";
+    }
+    if (json.dependencies["@atomist/automation-client"]) {
+        return json.dependencies["@atomist/automation-client"].version
     } else {
         return "NONE";
     }

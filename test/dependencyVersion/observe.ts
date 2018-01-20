@@ -108,7 +108,7 @@ function packageLockJson(automationClientVersion: string): { path: "package-lock
       "version": "${automationClientVersion}",
       "integrity": "sha512-dS9/UEderhSNevVEGN7spPwyapkYFKw3Cp/0yJJs47sYA8EfQPVxeS0rJ2vuwhBjqjeCTCgfRFdlyodjUU5PAg==",
       "requires": {
-        "@atomist/microgrammar": "0.7.0",
+        "@atomist/microgrammar": "0.7.0"
       }
     }
   }

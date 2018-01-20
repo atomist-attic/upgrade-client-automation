@@ -2,6 +2,7 @@
 import * as URL from "url";
 import { stringify } from "querystring";
 import * as GitHubApi from "github";
+import { logger } from "@atomist/automation-client";
 
 /*  {
     baseUrl: "https://www.github.com",
@@ -49,7 +50,7 @@ function fetchFileContentsImpl(token: string,
             /* this could also be a lack of auth. but I don't want to do another check. */
             return Promise.resolve(404 as FileNotFound);
         }
-        console.log(
+        logger.warn(
             `failed to fetch file at ${
                 location.apiUrl}/repos/${
                 location.owner}/${location.name}/contents/${location.path}?ref=${ref}`);
