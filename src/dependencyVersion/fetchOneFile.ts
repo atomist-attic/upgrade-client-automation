@@ -20,9 +20,13 @@ export interface RemoteFileLocation {
 
 export type FileNotFound = 404;
 
-export function fetchFileContents(token: string,
-                                  location: RemoteFileLocation,
-                                  ref: string): Promise<string | FileNotFound > {
+export const GitHubFileWorld = {
+    fetchFileContents: fetchFileContentsImpl,
+};
+
+function fetchFileContentsImpl(token: string,
+                               location: RemoteFileLocation,
+                               ref: string): Promise<string | FileNotFound> {
     return api(token, location.apiUrl).repos.getContent({
         owner: location.owner,
         repo: location.name,

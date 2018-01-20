@@ -1,10 +1,11 @@
 import "mocha";
 import * as assert from "power-assert";
+
+import { pushedFingerprints } from "../fakePushFingerprints";
+import { projectsInTheWorld } from "../fakeGitHubFile";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import { RepoRef } from "@atomist/automation-client/operations/common/RepoId";
-import { Project } from "@atomist/automation-client/project/Project";
 import * as graphql from "../../src/typings/types"
-import { Fingerprint, FingerprintedCommit, PushFingerprintWorld } from "../../src/dependencyVersion/fingerprint";
 import { guid } from "@atomist/automation-client/internal/util/string";
 import {
     AutomationClientVersionFingerprintName,
@@ -13,31 +14,29 @@ import {
 import * as stringify from "json-stringify-safe";
 import { fakeContext } from "../fakeContext";
 
+
+
 describe("How we know which repositories have which version", () => {
-    const pushedFingerprints: {
-        [key: string]: { commit: FingerprintedCommit, fingerprints: Fingerprint[] }
-    } = {};
-
-    function fakePushFingerprint(commit: FingerprintedCommit,
-                                 ...fingerprints: Fingerprint[]) {
-        pushedFingerprints[commit.sha] = { commit, fingerprints };
-        return Promise.resolve();
-    }
-
-    PushFingerprintWorld.pushFingerprint = fakePushFingerprint;
 
     describe("Fingerprint each commit with the version in package-lock-json", () => {
         it("on push, fingerprint is sent: automation-client-version=0.2.3", (done) => {
+            // There exists a project with automation client version 0.2.3
             const projectThatUsesAutomationClient = automationClientProject("0.2.3");
             const afterSha = randomSha();
-            const pushEvent = pushForFingerprinting(afterSha, projectThatUsesAutomationClient);
+            projectsInTheWorld[afterSha] = projectThatUsesAutomationClient; // put this in the fake world
+            // and we make a push to it
+            const pushEvent = pushForFingerprinting(afterSha);
             eventArrives(pushEvent)
-                .then(() => {
+                .then(handlerResult => {
+                    assert(handlerResult.code === 0, stringify(handlerResult));
+                    // a fingerprint has been pushed
                     const pushedFingerprint = pushedFingerprints[afterSha];
                     assert(pushedFingerprint, "Nothing pushed for " + afterSha);
+                    // with the right name
                     const myFingerprint = pushedFingerprint.fingerprints
                         .find(f => f.name == AutomationClientVersionFingerprintName);
                     assert(myFingerprint, "Didn't find it. " + stringify(pushedFingerprint));
+                    // and the right value
                     assert(myFingerprint.sha === "0.2.3");
                 })
                 .then(() => done(), done);
@@ -65,7 +64,7 @@ function randomSha() {
 
 const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "tuvalu" };
 
-function pushForFingerprinting(afterSha: string, after: Project): graphql.PushForFingerprinting.Query {
+function pushForFingerprinting(afterSha: string): graphql.PushForFingerprinting.Query {
     const push = {
         repo: { owner: pretendRepo.owner, name: pretendRepo.repo },
         after: { sha: afterSha },
