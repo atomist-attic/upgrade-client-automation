@@ -15,10 +15,12 @@ import { configuration } from "../atomist.config";
 import * as graphql from "../typings/types";
 import * as stringify from "json-stringify-safe";
 
-import { Fingerprint, pushFingerprint } from "./fingerprint";
+import { Fingerprint, PushFingerprintWorld } from "./fingerprint";
 import * as _ from "lodash";
 import { fetchFileContents, RemoteFileLocation } from "./fetchOneFile";
 import { adminChannel } from "../credentials";
+
+export const AutomationClientVersionFingerprintName = "automation-client-version";
 
 /**
  * This produces a fingerprint on a commit and passes it back to Atomist.
@@ -34,7 +36,7 @@ import { adminChannel } from "../credentials";
 @EventHandler("Add fingerprint on schema change",
     GraphQL.subscriptionFromFile("graphql/push")) // look in graphql/push.idl to see the events we'll get
 @Tags("graphql")
-export class NoticeSchemaChange implements HandleEvent<graphql.PushForFingerprinting.Query> {
+export class FingerprintAutomationClientVersion implements HandleEvent<graphql.PushForFingerprinting.Query> {
 
     @Secret(Secrets.OrgToken)
     public githubToken: string;
@@ -70,9 +72,9 @@ export class NoticeSchemaChange implements HandleEvent<graphql.PushForFingerprin
             } else {
                 const version = calculateFingerprint(plj);
                 const fingerprint = {
-                    name: "automation-client-version", sha: version,
+                    name: AutomationClientVersionFingerprintName, sha: version,
                 };
-                return pushFingerprint(teamId, {
+                return PushFingerprintWorld.pushFingerprint({
                     provider: provider.url,
                     owner: repo.owner, repo: repo.name, sha: afterSha,
                 }, fingerprint)

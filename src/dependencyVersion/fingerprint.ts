@@ -14,8 +14,11 @@ export interface Fingerprint {
     sha: string
 }
 
-export let pushFingerprint: (commit: FingerprintedCommit, ...fingerprints: Fingerprint[]) => Promise<void> =
-    pushFingerprintImpl;
+export const PushFingerprintWorld = {
+    pushFingerprint: pushFingerprintImpl
+}
+//export let pushFingerprint: (commit: FingerprintedCommit, ...fingerprints: Fingerprint[]) => Promise<void> =
+  //  pushFingerprintImpl;
 
 function pushFingerprintImpl(commit: FingerprintedCommit,
                              ...fingerprints: Fingerprint[]): Promise<void> {
