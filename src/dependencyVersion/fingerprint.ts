@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as _ from "lodash";
-import { atomistWebhookUrl } from "../credentials";
+import { atomistWebhookUrl, teamId } from "../credentials";
 
 export interface FingerprintedCommit {
     provider: string,
@@ -14,9 +14,11 @@ export interface Fingerprint {
     sha: string
 }
 
-export function pushFingerprint(teamId: string,
-                                commit: FingerprintedCommit,
-                                ...fingerprints: Fingerprint[]): Promise<void> {
+export let pushFingerprint: (commit: FingerprintedCommit, ...fingerprints: Fingerprint[]) => Promise<void> =
+    pushFingerprintImpl;
+
+function pushFingerprintImpl(commit: FingerprintedCommit,
+                             ...fingerprints: Fingerprint[]): Promise<void> {
     const url = atomistWebhookUrl + "/fingerprints/teams/" + teamId;
     const data = {
         commit,

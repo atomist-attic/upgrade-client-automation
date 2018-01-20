@@ -20,6 +20,7 @@ import { BeginReleaseHandler } from "./prepareRelease/command";
 import { UpgradeTo0_5 } from "./typescriptEditing/command";
 import { updateNpmScripts } from "./npmScripts/command";
 import { findAutomationClientsCommand } from "./findAutomations/command";
+import { teamId } from "./credentials";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -29,7 +30,7 @@ const token = process.env.GITHUB_TOKEN;
 export const configuration: Configuration = {
     name: pj.name,
     version: pj.version,
-    teamIds: ["T29E48P34"], // atomist-community
+    teamIds: [teamId], // atomist-community
 
     commands: [
         BeginReleaseHandler,
