@@ -21,6 +21,7 @@ import { UpgradeTo0_5 } from "./typescriptEditing/command";
 import { updateNpmScripts } from "./npmScripts/command";
 import { findAutomationClientsCommand } from "./findAutomations/command";
 import { teamId } from "./credentials";
+import { FingerprintAutomationClientVersion } from "./dependencyVersion/FingerprintAutomationClientVersion";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -37,6 +38,9 @@ export const configuration: Configuration = {
         () => new UpgradeTo0_5(),
         updateNpmScripts,
         () => findAutomationClientsCommand
+    ],
+    events: [
+        () => new FingerprintAutomationClientVersion()
     ],
     token,
     http: {
