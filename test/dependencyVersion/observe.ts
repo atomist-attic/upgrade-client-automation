@@ -13,11 +13,13 @@ import {
 } from "../../src/dependencyVersion/FingerprintAutomationClientVersion";
 import * as stringify from "json-stringify-safe";
 import { fakeContext } from "../fakeContext";
+import { HandlerContext } from "@atomist/automation-client";
+import { listAutomationClientsCommand } from "../../src/dependencyVersion/ListAutomationClients";
 
 
-describe("How we know which repositories have which version", () => {
+describe("Observe: which automation clients are on each version", () => {
 
-    describe("Fingerprint each commit with the version in package-lock-json", () => {
+    describe("Fingerprint each commit with the version in package-lock.json", () => {
         it("on push, fingerprint is sent: automation-client-version=0.2.3", (done) => {
             // There exists a project with automation client version 0.2.3
             const projectThatUsesAutomationClient = automationClientProject("0.2.3");
@@ -62,9 +64,37 @@ describe("How we know which repositories have which version", () => {
                     })
                     .then(() => done(), done);
             })
+    });
+
+    describe("A command reveals which repos are clients", () => {
+        it("responds with a slack message listing all clients and their versions", done => {
+            // todo: link to what this looks like in the Slack message play page
+
+            const context = fakeContext();
+            commandInvoked("list automation clients", context)
+                .then(result => {
+                    assert(context.responses.length === 1);
+                    const response = context.responses[0];
+                    assert.deepEqual(responseMessage, response, stringify(response))
+                })
+                .then(() => done(), done)
+        })
     })
 
 });
+
+
+const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "tuvalu" };
+const PretendRepoDescription = "satellite-of-love/tuvalu";
+const PretendRepoLink = "https://github.com/satellite-of-love/tuvalu";
+
+const responseMessage = {
+    text: `I found 1 automation client.`,
+    attachments: [{
+        fallback: "an automation client",
+        text: `<${PretendRepoLink}|${PretendRepoDescription}> is on version 0.2.3`,
+    }],
+};
 
 /*
  * this is where I'd like to have a test framework.
@@ -78,12 +108,15 @@ function eventArrives(event: graphql.PushForFingerprinting.Query): Promise<any> 
         handlerThatWouldFire);
 }
 
+function commandInvoked(intent: string, context: HandlerContext = fakeContext()): Promise<any> {
+    const handlerThatWouldFire = listAutomationClientsCommand();
+    return handlerThatWouldFire.handle(context, {})
+}
+
 
 function randomSha() {
     return guid()
 }
-
-const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "tuvalu" };
 
 function pushForFingerprinting(afterSha: string): graphql.PushForFingerprinting.Query {
     const push = {
