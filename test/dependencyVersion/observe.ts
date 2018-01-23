@@ -1,7 +1,7 @@
 import "mocha";
 import * as assert from "power-assert";
 
-import { pushedFingerprints } from "../fakePushFingerprints";
+import { observePushedFingerprints } from "../fakePushFingerprints";
 import { projectsInTheWorld } from "../fakeGitHubFile";
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import { RepoRef } from "@atomist/automation-client/operations/common/RepoId";
@@ -15,6 +15,7 @@ import * as stringify from "json-stringify-safe";
 import { fakeContext } from "../fakeContext";
 import { HandlerContext } from "@atomist/automation-client";
 import { listAutomationClientsCommand } from "../../src/dependencyVersion/ListAutomationClients";
+import { ProjectInTheWorld } from "../jessFakesTheWorld";
 
 
 describe("Observe: which automation clients are on each version", () => {
@@ -23,16 +24,15 @@ describe("Observe: which automation clients are on each version", () => {
         it("on push, fingerprint is sent: automation-client-version=0.2.3", (done) => {
             // There exists a project with automation client version 0.2.3
             const projectThatUsesAutomationClient = automationClientProject("0.2.3");
-            const afterSha = randomSha();
-            projectsInTheWorld[afterSha] = projectThatUsesAutomationClient; // put this in the fake world
             // and we make a push to it
-            const pushEvent = pushForFingerprinting(afterSha);
+            populateTheWorld(projectThatUsesAutomationClient);
+            const pushEvent = pushForFingerprinting(projectThatUsesAutomationClient);
             eventArrives(pushEvent)
                 .then(handlerResult => {
                     assert(handlerResult.code === 0, stringify(handlerResult));
                     // a fingerprint has been pushed
-                    const pushedFingerprint = pushedFingerprints[afterSha];
-                    assert(pushedFingerprint, "Nothing pushed for " + afterSha);
+                    const pushedFingerprint = observePushedFingerprints(projectThatUsesAutomationClient);
+                    assert(pushedFingerprint, "Nothing pushed for " + projectThatUsesAutomationClient.latestSha);
                     // with the right name
                     const myFingerprint = pushedFingerprint.fingerprints
                         .find(f => f.name == AutomationClientVersionFingerprintName);
@@ -45,16 +45,16 @@ describe("Observe: which automation clients are on each version", () => {
 
         it("for projects which are not Node projects, fingerprints: automation-client-version=NONE",
             done => {
-                const afterSha = randomSha();
-                projectsInTheWorld[afterSha] = nonNodeProject(); // put this in the fake world
+                const pitw = nonNodeProject(); // put this in the fake world
                 // and we make a push to it
-                const pushEvent = pushForFingerprinting(afterSha);
+                populateTheWorld(pitw);
+                const pushEvent = pushForFingerprinting(pitw);
                 eventArrives(pushEvent)
                     .then(handlerResult => {
                         assert(handlerResult.code === 0, stringify(handlerResult));
                         // a fingerprint has been pushed
-                        const pushedFingerprint = pushedFingerprints[afterSha];
-                        assert(pushedFingerprint, "Nothing pushed for " + afterSha);
+                        const pushedFingerprint = observePushedFingerprints(pitw);
+                        assert(pushedFingerprint, "Nothing pushed for " + pitw.latestSha);
                         // with the right name
                         const myFingerprint = pushedFingerprint.fingerprints
                             .find(f => f.name == AutomationClientVersionFingerprintName);
@@ -68,13 +68,14 @@ describe("Observe: which automation clients are on each version", () => {
 
     describe("A command reveals which repos are clients", () => {
         it("responds with a slack message listing all clients and their versions", done => {
-            // todo: link to what this looks like in the Slack message play page
+            populateTheWorld(automationClientProject("0.2.3"));
 
             const context = fakeContext();
             commandInvoked("list automation clients", context)
                 .then(result => {
                     assert(context.responses.length === 1);
                     const response = context.responses[0];
+                    // todo: link to what this looks like in the Slack message play page
                     assert.deepEqual(responseMessage, response, stringify(response))
                 })
                 .then(() => done(), done)
@@ -82,6 +83,14 @@ describe("Observe: which automation clients are on each version", () => {
     })
 
 });
+
+function populateTheWorld(...projects: ProjectInTheWorld[]) {
+    projects.forEach(pitw => {
+        projectsInTheWorld[pitw.latestSha] = InMemoryProject.from(pitw.repoRef,
+            ...pitw.files);
+    });
+
+}
 
 
 const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "tuvalu" };
@@ -118,25 +127,29 @@ function randomSha() {
     return guid()
 }
 
-function pushForFingerprinting(afterSha: string): graphql.PushForFingerprinting.Query {
+function pushForFingerprinting(pitw: ProjectInTheWorld): graphql.PushForFingerprinting.Query {
     const push = {
-        repo: { owner: pretendRepo.owner, name: pretendRepo.repo },
-        after: { sha: afterSha },
+        repo: { owner: pitw.repoRef.owner, name: pitw.repoRef.repo },
+        after: { sha: pitw.latestSha },
     };
     return { Push: [push] }
 }
 
-function automationClientProject(automationClientVersion: string) {
-    const project = InMemoryProject.from(pretendRepo,
-        packageJson(automationClientVersion),
-        packageLockJson(automationClientVersion));
-    return project;
+function automationClientProject(automationClientVersion: string): ProjectInTheWorld {
+    return {
+        repoRef: pretendRepo, files: [
+            packageJson(automationClientVersion),
+            packageLockJson(automationClientVersion)],
+        latestSha: randomSha(),
+    };
 }
 
-function nonNodeProject() {
-    const project = InMemoryProject.from(pretendRepo,
-        { path: "README.md", content: "I am not a Node project" });
-    return project;
+function nonNodeProject(): ProjectInTheWorld {
+    return {
+        repoRef: pretendRepo,
+        files: [{ path: "README.md", content: "I am not a Node project" }],
+        latestSha: randomSha(),
+    };
 }
 
 function packageJson(automationClientVersion: string): { path: "package.json", content: string } {
