@@ -3,6 +3,7 @@ import * as URL from "url";
 import { stringify } from "querystring";
 import * as GitHubApi from "github";
 import { logger } from "@atomist/automation-client";
+import * as _ from "lodash";
 
 /*  {
     baseUrl: "https://www.github.com",
@@ -46,14 +47,16 @@ function fetchFileContentsImpl(token: string,
 
         return Promise.resolve(unencoded);
     }, err => {
-        if (err.response && err.response.status === 404) {
+        if (err.code === 404) {
             /* this could also be a lack of auth. but I don't want to do another check. */
             return Promise.resolve(404 as FileNotFound);
         }
         logger.warn(
             `failed to fetch file at ${
                 location.apiUrl}/repos/${
-                location.owner}/${location.name}/contents/${location.path}?ref=${ref}`);
+                location.owner}/${location.name}/contents/${location.path}?ref=${ref}
+                code: ${err.code}
+                status: ${err.status}`);
         return Promise.reject(err);
     });
 }
