@@ -70,7 +70,7 @@ describe("Observe: which automation clients are on each version", () => {
         it("responds with a slack message listing all clients and their versions", done => {
             const graph = populateTheWorld(
                 automationClientProject("0.2.3",
-                    {"some-better-branch": "0.2.4"}));
+                    {"some-better-branch": "0.2.4", "gh-pages": null}));
 
             // really this graphql result should be part of populating the world
             const context = fakeContext(graph);
@@ -230,7 +230,7 @@ function packageJson(automationClientVersion: string): { path: "package.json", c
   "version": "0.1.2",
   "description": "Look I am an automation",
   "dependencies": {
-    "@atomist/automation-client": "${automationClientVersion}",
+    ${automationClientVersion ? `"@atomist/automation-client": "${automationClientVersion}",`: ""}
     "moreStuff": "v0.2.3",
   }
 }
@@ -242,14 +242,16 @@ function packageJson(automationClientVersion: string): { path: "package.json", c
 }
 
 function packageLockJson(automationClientVersion: string): { path: "package-lock.json", content: string } {
+    const version = automationClientVersion || "4.4.4";
+    const lib = automationClientVersion ? "@atomist/automation-client" : "something-else";
     const content = `{
   "name": "@atomist/upgrade-client-automation",
   "version": "0.1.2",
   "lockfileVersion": 1,
   "requires": true,
   "dependencies": {
-    "@atomist/automation-client": {
-      "version": "${automationClientVersion}",
+    "${lib}": {
+      "version": "${version}",
       "integrity": "sha512-dS9/UEderhSNevVEGN7spPwyapkYFKw3Cp/0yJJs47sYA8EfQPVxeS0rJ2vuwhBjqjeCTCgfRFdlyodjUU5PAg==",
       "requires": {
         "@atomist/microgrammar": "0.7.0"

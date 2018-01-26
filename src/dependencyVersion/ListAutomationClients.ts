@@ -2,7 +2,7 @@ import { commandHandlerFrom } from "@atomist/automation-client/onCommand";
 import { Parameters } from "@atomist/automation-client/decorators";
 import { HandleCommand, HandlerContext, HandlerResult, Secret, Secrets, success } from "@atomist/automation-client";
 import * as graphql from "../typings/types";
-import { doFingerprint } from "./FingerprintAutomationClientVersion";
+import { doFingerprint, NotAnAutomationClient } from "./FingerprintAutomationClientVersion";
 import * as slack from "@atomist/slack-messages/SlackMessages";
 import * as semver from "semver";
 
@@ -28,7 +28,7 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
 }
 
 async function analyseRepo(githubToken: string, repo: graphql.ListAutomationClients.Repo): Promise<AutomationClientRepo> {
-    const branches = await
+    const allBranches = await
         Promise.all(
             repo.branches.map(branch =>
                 gatherAutomationClientiness(githubToken, repo, branch)));
@@ -36,7 +36,7 @@ async function analyseRepo(githubToken: string, repo: graphql.ListAutomationClie
         repo: repo.name,
         owner: repo.owner,
         provider: providerFromRepo(repo),
-        branches,
+        branches: allBranches.filter(b => b.automationClientVersion !== NotAnAutomationClient),
     }
 }
 
