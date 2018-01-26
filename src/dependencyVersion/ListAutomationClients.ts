@@ -89,8 +89,8 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
 
 function constructMessage(acrs: AutomationClientRepo[]): slack.SlackMessage {
     return {
-        text: `Found ${acrs.length} automation client`,
-        attachments: acrs.map(acr => toAttachment(acr)),
+        text: `Found ${acrs.length} automation client${acrs.length === 1 ? "" : "s"}`,
+        attachments: acrs.map(acr => toAttachment(acr)).slice(0, 25), // Slack only allows so many
     }
 }
 
@@ -118,8 +118,9 @@ function byAutomationClientVersionDecreasing(acb1: AutomationClientBranch, acb2:
 
     // These can be links. They don't have to be semver
     if (!semver.valid(v1) && !semver.valid(v2)) {
-        // both are invalid. Compare them as strings
-        return v1.localeCompare(v2);
+        // both are invalid. Compare them as strings for deterministicness.
+        // but prioritize defaultBranch being first
+        return acb1.isDefault ? -1 : acb2.isDefault ? 1 : v1.localeCompare(v2);
     }
     if (!semver.valid(v1)) {
         return 1;
@@ -128,10 +129,13 @@ function byAutomationClientVersionDecreasing(acb1: AutomationClientBranch, acb2:
         return -1;
     }
 
-    return semver.rcompare(v1, v2)
-
+    const semverComparison = semver.rcompare(v1, v2);
+    if (semverComparison === 0) {
+        // list the default branch first, if it's otherwise the same
+        return acb1.isDefault ? -1 : acb2.isDefault ? 1 : 0;
+    }
+    return semverComparison;
 }
-
 
 function providerFromRepo(repo) {
     return (repo.org && repo.org.provider) ? repo.org.provider : {

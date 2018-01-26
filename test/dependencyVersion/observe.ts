@@ -70,7 +70,12 @@ describe("Observe: which automation clients are on each version", () => {
         it("responds with a slack message listing all clients and their versions", done => {
             const graph = populateTheWorld(
                 automationClientProject("0.2.3",
-                    {"some-better-branch": "0.2.4", "gh-pages": null}),
+                    {
+                        "some-better-branch": "0.2.4",
+                        "a-same-branch": "0.2.3",
+                        "custom-branch": "https://r.atomist.com/sakfjhqwekhrquef",
+                        "gh-pages": null,
+                    }),
                 nonNodeProject());
 
             // really this graphql result should be part of populating the world
@@ -89,7 +94,6 @@ describe("Observe: which automation clients are on each version", () => {
 });
 
 
-
 const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "lifecycle-automation" };
 const PretendRepoDescription = "satellite-of-love/lifecycle-automation";
 const PretendRepoLink = "https://github.com/satellite-of-love/lifecycle-automation";
@@ -100,7 +104,10 @@ const responseMessage = {
         fallback: "an automation client",
         title: PretendRepoDescription,
         title_link: PretendRepoLink,
-        text: `some-better-branch 0.2.4\n*master* 0.2.3`,
+        text: `some-better-branch 0.2.4
+*master* 0.2.3
+a-same-branch 0.2.3
+custom-branch https://r.atomist.com/sakfjhqwekhrquef`,
     }],
 };
 
@@ -117,6 +124,7 @@ function populateTheWorld(...projects: ProjectInTheWorld[]) {
         "graphql/list": { Repo: projects.map(pitw => pitw.listEntry) },
     }
 }
+
 /*
  * this is where I'd like to have a test framework.
  * I'm going to hard-code something instead.
@@ -156,7 +164,7 @@ function automationClientProject(defaultBranchAutomationClientVersion: string,
     const commits: CommitSpecs = {};
     commits[sha] = commitFor(defaultBranchAutomationClientVersion);
 
-    for(let branchName in otherBranches) {
+    for (let branchName in otherBranches) {
         const anotherSha = randomSha();
         branches.push(branchFor(branchName, anotherSha));
         commits[anotherSha] = commitFor(otherBranches[branchName]);
@@ -233,7 +241,7 @@ function packageJson(automationClientVersion: string): { path: "package.json", c
   "version": "0.1.2",
   "description": "Look I am an automation",
   "dependencies": {
-    ${automationClientVersion ? `"@atomist/automation-client": "${automationClientVersion}",`: ""}
+    ${automationClientVersion ? `"@atomist/automation-client": "${automationClientVersion}",` : ""}
     "moreStuff": "v0.2.3",
   }
 }
