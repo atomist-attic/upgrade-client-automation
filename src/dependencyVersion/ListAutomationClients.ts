@@ -1,10 +1,14 @@
 import { commandHandlerFrom } from "@atomist/automation-client/onCommand";
 import { Parameters } from "@atomist/automation-client/decorators";
-import { HandleCommand, HandlerContext, HandlerResult, Secret, Secrets, success } from "@atomist/automation-client";
+import {
+    HandleCommand, HandlerContext, HandlerResult, logger, Secret, Secrets,
+    success,
+} from "@atomist/automation-client";
 import * as graphql from "../typings/types";
 import { doFingerprint, NotAnAutomationClient } from "./FingerprintAutomationClientVersion";
 import * as slack from "@atomist/slack-messages/SlackMessages";
 import * as semver from "semver";
+import * as _ from "lodash";
 
 
 @Parameters()
@@ -17,7 +21,7 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
     const query = await ctx.graphClient.executeQueryFromFile<graphql.ListAutomationClients.Query, {}>(
         "graphql/list");
 
-    const repos = query.Repo.filter(r => r.name === "lifecycle-automation");
+    const repos = query.Repo; //.filter(r => r.name === "lifecycle-automation");
 
     // for the first test, assume we have
     const acbs: AutomationClientRepo[] = await Promise.all(
@@ -56,13 +60,24 @@ interface AutomationClientRepo {
 
 async function gatherAutomationClientiness(githubToken: string, repo: graphql.ListAutomationClients.Repo,
                                            branch: graphql.ListAutomationClients.Branches): Promise<AutomationClientBranch> {
-    const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha };
-    const fingerprint = await doFingerprint(githubToken, where);
-    return {
-        sha: branch.commit.sha,
-        branchName: branch.name,
-        automationClientVersion: fingerprint.sha,
-        isDefault: branch.name === repo.defaultBranch,
+    try {
+        const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha };
+        const fingerprint = await doFingerprint(githubToken, where);
+        return {
+            sha: branch.commit.sha,
+            branchName: branch.name,
+            automationClientVersion: fingerprint.sha,
+            isDefault: branch.name === repo.defaultBranch,
+        }
+
+    } catch (err) {
+        logger.warn("Could not get automation client version: " + err);
+        return {
+            sha: _.get(branch, "commit.sha", "???"),
+            branchName: branch ? branch.name : "???",
+            automationClientVersion: "???",
+            isDefault: false,
+        }
     }
 }
 

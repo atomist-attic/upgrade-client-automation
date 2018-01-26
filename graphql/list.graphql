@@ -14,7 +14,7 @@ query ListAutomationClients {
                 number
                 state
             }
-            commit {
+            commit @required {
                 sha
                 message
                 fingerprints {

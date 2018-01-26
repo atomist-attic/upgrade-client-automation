@@ -47,7 +47,7 @@ function fetchFileContentsImpl(token: string,
 
         return Promise.resolve(unencoded);
     }, err => {
-        if (err.code === 404) {
+        if (err.code === 404 || err.code === "404") {
             /* this could also be a lack of auth. but I don't want to do another check. */
             return Promise.resolve(404 as FileNotFound);
         }
