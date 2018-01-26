@@ -146,20 +146,21 @@ function pushForFingerprinting(pitw: ProjectInTheWorld): graphql.PushForFingerpr
 function automationClientProject(defaultBranchAutomationClientVersion: string,
                                  otherBranches: { [key: string]: string | null } = {}): ProjectInTheWorld {
     const sha = randomSha();
+    const masterBranch = {
+        name: "master",
+        pullRequests: [],
+        commit: {
+            sha,
+            message: "I don't know",
+            fingerprints: [],
+        },
+    };
     const r: graphql.ListAutomationClients.Repo = {
         defaultBranch: "master",
         name: pretendRepo.repo,
         owner: pretendRepo.owner,
         org: {},
-        branches: [{
-            name: "master",
-            pullRequests: [],
-            commit: {
-                sha,
-                message: "I don't know",
-                fingerprints: [],
-            },
-        }],
+        branches: [masterBranch],
     };
     const commits: CommitSpecs = {};
     commits[sha] = {
