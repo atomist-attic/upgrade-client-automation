@@ -70,7 +70,8 @@ describe("Observe: which automation clients are on each version", () => {
         it("responds with a slack message listing all clients and their versions", done => {
             const graph = populateTheWorld(
                 automationClientProject("0.2.3",
-                    {"some-better-branch": "0.2.4", "gh-pages": null}));
+                    {"some-better-branch": "0.2.4", "gh-pages": null}),
+                nonNodeProject());
 
             // really this graphql result should be part of populating the world
             const context = fakeContext(graph);
@@ -197,12 +198,14 @@ function commitFor(automationClientVersion: string): OneCommitInTheWorld {
     }
 }
 
+const pretendNonNodeRepo: RepoRef = { owner: "satellite-of-love", repo: "spildrazil" };
+
 function nonNodeProject(): ProjectInTheWorld {
     const sha = randomSha();
     const r: graphql.ListAutomationClients.Repo = {
         defaultBranch: "master",
-        name: pretendRepo.repo,
-        owner: pretendRepo.owner,
+        name: pretendNonNodeRepo.repo,
+        owner: pretendNonNodeRepo.owner,
         org: {},
         branches: [{
             name: "master",
@@ -217,7 +220,7 @@ function nonNodeProject(): ProjectInTheWorld {
     const commits: CommitSpecs = {};
     commits[sha] = { files: [{ path: "README.md", content: "I am not a Node project" }], }
     return {
-        repoRef: pretendRepo,
+        repoRef: pretendNonNodeRepo,
         commits,
         latestSha: sha,
         listEntry: r,

@@ -24,10 +24,12 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
     const repos = query.Repo; //.filter(r => r.name === "lifecycle-automation");
 
     // for the first test, assume we have
-    const acbs: AutomationClientRepo[] = await Promise.all(
+    const acrs: AutomationClientRepo[] = await Promise.all(
         repos.map(r => analyseRepo(params.githubToken, r)));
 
-    return ctx.messageClient.respond(constructMessage(acbs))
+    const relevant = acrs.filter(acr => acr.isAutomationClient);
+
+    return ctx.messageClient.respond(constructMessage(relevant))
         .then(success);
 }
 
@@ -36,11 +38,14 @@ async function analyseRepo(githubToken: string, repo: graphql.ListAutomationClie
         Promise.all(
             repo.branches.map(branch =>
                 gatherAutomationClientiness(githubToken, repo, branch)));
+    const branchesWithAutomationClient = allBranches.filter(b =>
+        b.automationClientVersion !== NotAnAutomationClient);
     return {
+        isAutomationClient: branchesWithAutomationClient.length > 0,
         repo: repo.name,
         owner: repo.owner,
         provider: providerFromRepo(repo),
-        branches: allBranches.filter(b => b.automationClientVersion !== NotAnAutomationClient),
+        branches: branchesWithAutomationClient,
     }
 }
 
@@ -52,6 +57,7 @@ interface AutomationClientBranch {
 }
 
 interface AutomationClientRepo {
+    isAutomationClient: boolean,
     repo: string,
     owner: string,
     provider: { url: string, apiUrl: string },
