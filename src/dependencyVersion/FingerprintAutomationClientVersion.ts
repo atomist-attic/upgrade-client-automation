@@ -7,7 +7,7 @@ import { logger } from "@atomist/automation-client/internal/util/logger";
 import * as graphql from "../typings/types";
 import * as stringify from "json-stringify-safe";
 
-import { PushFingerprintWorld } from "./fingerprint";
+import { Fingerprint, PushFingerprintWorld, WhereToFingerprint } from "./fingerprint";
 import { GitHubFileWorld, RemoteFileLocation } from "./fetchOneFile";
 import { adminChannel } from "../credentials";
 
@@ -40,27 +40,13 @@ export class FingerprintAutomationClientVersion implements HandleEvent<graphql.P
         try {
             const repo = push.repo;
             const afterSha = push.after.sha;
-            const provider = providerFromRepo(repo);
 
-            // get the contents, and if that worked, then calculate a fingerprint and push it
-            const packageLock: RemoteFileLocation = {
-                owner: repo.owner,
-                name: repo.name,
-                baseUrl: provider.url,
-                apiUrl: provider.apiUrl,
-                path: "package-lock.json",
-            };
-            const plj = await GitHubFileWorld.fetchFileContents(params.githubToken, packageLock, afterSha);
-            logger.info("Contents of package-lock: " + plj);
-            const fingerprint = {
-                name: AutomationClientVersionFingerprintName,
-                sha: plj === 404 ? NotAnAutomationClient : calculateFingerprint(plj),
-            };
-            console.log("Fingerprint: " + stringify(fingerprint));
-            await PushFingerprintWorld.pushFingerprint({
-                provider: provider.url,
-                owner: repo.owner, repo: repo.name, sha: afterSha,
-            }, fingerprint);
+            const fingerprint = await doFingerprint(params.githubToken,
+                {
+                    owner: repo.owner, repo: repo.name,
+                    provider: providerFromRepo(repo),
+                    sha: afterSha,
+                })
 
             return {
                 code: 0, message:
@@ -70,6 +56,29 @@ export class FingerprintAutomationClientVersion implements HandleEvent<graphql.P
             return reportFailure(ctx, push, error);
         }
     }
+}
+
+//todo: support more general auth
+export async function doFingerprint(githubToken: string, where: WhereToFingerprint): Promise<Fingerprint> {
+    // get the contents, and if that worked, then calculate a fingerprint and push it
+    const packageLock: RemoteFileLocation = {
+        owner: where.owner,
+        name: where.repo,
+        baseUrl: where.provider.url,
+        apiUrl: where.provider.apiUrl,
+        path: "package-lock.json",
+    };
+    const plj = await GitHubFileWorld.fetchFileContents(githubToken, packageLock, where.sha);
+    logger.info("Contents of package-lock: " + plj);
+    const fingerprint: Fingerprint = {
+        name: AutomationClientVersionFingerprintName,
+        sha: plj === 404 ? NotAnAutomationClient : calculateFingerprint(plj),
+    };
+    console.log("Fingerprint: " + stringify(fingerprint));
+    return PushFingerprintWorld.pushFingerprint(where, fingerprint).then(() => fingerprint, error => {
+
+    return fingerprint;
+    }) ;
 }
 
 function providerFromRepo(repo) {

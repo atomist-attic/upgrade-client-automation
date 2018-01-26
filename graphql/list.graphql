@@ -1,0 +1,28 @@
+query ListAutomationClients {
+    Repo {
+        defaultBranch
+        name
+        owner
+        org {
+            provider {
+                url
+            }
+        }
+        branches {
+            name
+            pullRequests {
+                number
+                state
+            }
+            commit {
+                sha
+                message
+                fingerprints {
+                    data
+                    sha
+                    name
+                }
+            }
+        }
+    }
+}

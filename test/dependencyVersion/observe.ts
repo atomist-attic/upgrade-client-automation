@@ -101,7 +101,9 @@ const responseMessage = {
     text: `I found 1 automation client.`,
     attachments: [{
         fallback: "an automation client",
-        text: `<${PretendRepoLink}|${PretendRepoDescription}> is on version 0.2.3`,
+        title: PretendRepoDescription,
+        title_link: PretendRepoLink,
+        text: `*master* 0.2.3`,
     }],
 };
 
