@@ -4,6 +4,9 @@ import { HandlerContext } from "@atomist/automation-client";
 
 export class FakeContext {
 
+    constructor(public graphs: { [key: string]: any }) {
+    }
+
     public responses: (string | SlackMessage)[] = [];
 
     public messageClient = {
@@ -22,7 +25,16 @@ export class FakeContext {
         },
     }
 
+    public graphClient = {
+        executeQueryFromFile: (path: string) => {
+            if (!this.graphs[path]) {
+                throw new Error("I don't know what to return for " + path)
+            }
+            return this.graphs[path];
+        }
+    }
+
 }
-export function fakeContext() : HandlerContext & FakeContext {
-    return new FakeContext() as HandlerContext & FakeContext;
+export function fakeContext(graphs: { [key: string]: any } = {}) : HandlerContext & FakeContext {
+    return new FakeContext(graphs) as HandlerContext & FakeContext;
 }

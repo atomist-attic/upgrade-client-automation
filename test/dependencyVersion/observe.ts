@@ -68,9 +68,10 @@ describe("Observe: which automation clients are on each version", () => {
 
     describe("A command reveals which repos are clients", () => {
         it("responds with a slack message listing all clients and their versions", done => {
-            populateTheWorld(automationClientProject("0.2.3"));
+            const graph = populateTheWorld(automationClientProject("0.2.3"));
 
-            const context = fakeContext();
+            // really this graphql result should be part of populating the world
+            const context = fakeContext(graph);
             commandInvoked("list automation clients", context)
                 .then(result => {
                     assert(context.responses.length === 1);
@@ -90,6 +91,9 @@ function populateTheWorld(...projects: ProjectInTheWorld[]) {
             ...pitw.files);
     });
 
+    return {
+        "graphql/list": { Repo: projects.map(pitw => pitw.listEntry) },
+    }
 }
 
 
@@ -121,7 +125,7 @@ function eventArrives(event: graphql.PushForFingerprinting.Query): Promise<any> 
 
 function commandInvoked(intent: string, context: HandlerContext = fakeContext()): Promise<any> {
     const handlerThatWouldFire = listAutomationClientsCommand();
-    return handlerThatWouldFire.handle(context, {})
+    return handlerThatWouldFire.handle(context, { githubToken: "I AM A FAKE TOKEN" })
 }
 
 
@@ -138,19 +142,54 @@ function pushForFingerprinting(pitw: ProjectInTheWorld): graphql.PushForFingerpr
 }
 
 function automationClientProject(automationClientVersion: string): ProjectInTheWorld {
+    const sha = randomSha();
+    const r: graphql.ListAutomationClients.Repo = {
+        defaultBranch: "master",
+        name: pretendRepo.repo,
+        owner: pretendRepo.owner,
+        org: {},
+        branches: [{
+            name: "master",
+            pullRequests: [],
+            commit: {
+                sha,
+                message: "I don't know",
+                fingerprints: [],
+            },
+        }],
+    };
     return {
-        repoRef: pretendRepo, files: [
+        repoRef: pretendRepo,
+        files: [
             packageJson(automationClientVersion),
             packageLockJson(automationClientVersion)],
-        latestSha: randomSha(),
+        latestSha: sha,
+        listEntry: r,
     };
 }
 
 function nonNodeProject(): ProjectInTheWorld {
+    const sha = randomSha();
+    const r: graphql.ListAutomationClients.Repo = {
+        defaultBranch: "master",
+        name: pretendRepo.repo,
+        owner: pretendRepo.owner,
+        org: {},
+        branches: [{
+            name: "master",
+            pullRequests: [],
+            commit: {
+                sha,
+                message: "I don't know",
+                fingerprints: [],
+            },
+        }],
+    };
     return {
         repoRef: pretendRepo,
         files: [{ path: "README.md", content: "I am not a Node project" }],
-        latestSha: randomSha(),
+        latestSha: sha,
+        listEntry: r,
     };
 }
 

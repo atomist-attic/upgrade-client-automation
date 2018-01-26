@@ -1,14 +1,14 @@
 /*
  * Fake the pushed fingerprints
  */
-import { Fingerprint, FingerprintedCommit, PushFingerprintWorld } from "../src/dependencyVersion/fingerprint";
+import { Fingerprint, WhereToFingerprint, PushFingerprintWorld } from "../src/dependencyVersion/fingerprint";
 import { ProjectInTheWorld } from "./jessFakesTheWorld";
 
 const pushedFingerprints: {
-    [key: string]: { commit: FingerprintedCommit, fingerprints: Fingerprint[] }
+    [key: string]: { commit: WhereToFingerprint, fingerprints: Fingerprint[] }
 } = {};
 
-function fakePushFingerprint(commit: FingerprintedCommit,
+function fakePushFingerprint(commit: WhereToFingerprint,
                              ...fingerprints: Fingerprint[]) {
     console.log("Fake Push Fingerprint! " + commit.sha);
     pushedFingerprints[commit.sha] = { commit, fingerprints };

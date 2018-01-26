@@ -21,7 +21,7 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
             oneRepo.branches.map(branch => gatherAutomationClientiness(params.githubToken, oneRepo, branch)))));
 
     return ctx.messageClient.respond("Hello")
-        .then(success)
+        .then(success);
 }
 
 interface AutomationClientBranch {
@@ -38,7 +38,9 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
     const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha};
     const fingerprint = await doFingerprint(githubToken, where);
     return {
-
+        ...where,
+        branchName: branch.name,
+        automationClientVersion: fingerprint.sha
     }
 }
 
