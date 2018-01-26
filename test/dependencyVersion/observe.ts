@@ -15,7 +15,7 @@ import * as stringify from "json-stringify-safe";
 import { fakeContext } from "../fakeContext";
 import { HandlerContext } from "@atomist/automation-client";
 import { listAutomationClientsCommand } from "../../src/dependencyVersion/ListAutomationClients";
-import { ProjectInTheWorld } from "../jessFakesTheWorld";
+import { CommitSpecs, ProjectInTheWorld } from "../jessFakesTheWorld";
 
 
 describe("Observe: which automation clients are on each version", () => {
@@ -87,8 +87,10 @@ describe("Observe: which automation clients are on each version", () => {
 
 function populateTheWorld(...projects: ProjectInTheWorld[]) {
     projects.forEach(pitw => {
-        projectsInTheWorld[pitw.latestSha] = InMemoryProject.from(pitw.repoRef,
-            ...pitw.files);
+        for (let sha in pitw.commits) {
+            projectsInTheWorld[sha] = InMemoryProject.from(pitw.repoRef,
+                ...pitw.commits[sha].files);
+        }
     });
 
     return {
@@ -97,9 +99,9 @@ function populateTheWorld(...projects: ProjectInTheWorld[]) {
 }
 
 
-const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "tuvalu" };
-const PretendRepoDescription = "satellite-of-love/tuvalu";
-const PretendRepoLink = "https://github.com/satellite-of-love/tuvalu";
+const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "lifecycle-automation" };
+const PretendRepoDescription = "satellite-of-love/lifecycle-automation";
+const PretendRepoLink = "https://github.com/satellite-of-love/lifecycle-automation";
 
 const responseMessage = {
     text: `Found 1 automation client`,
@@ -141,7 +143,8 @@ function pushForFingerprinting(pitw: ProjectInTheWorld): graphql.PushForFingerpr
     return { Push: [push] }
 }
 
-function automationClientProject(automationClientVersion: string): ProjectInTheWorld {
+function automationClientProject(defaultBranchAutomationClientVersion: string,
+                                 otherBranches: { [key: string]: string | null } = {}): ProjectInTheWorld {
     const sha = randomSha();
     const r: graphql.ListAutomationClients.Repo = {
         defaultBranch: "master",
@@ -158,11 +161,15 @@ function automationClientProject(automationClientVersion: string): ProjectInTheW
             },
         }],
     };
+    const commits: CommitSpecs = {};
+    commits[sha] = {
+        files: [
+            packageJson(defaultBranchAutomationClientVersion),
+            packageLockJson(defaultBranchAutomationClientVersion)],
+    };
     return {
         repoRef: pretendRepo,
-        files: [
-            packageJson(automationClientVersion),
-            packageLockJson(automationClientVersion)],
+        commits,
         latestSha: sha,
         listEntry: r,
     };
@@ -185,9 +192,11 @@ function nonNodeProject(): ProjectInTheWorld {
             },
         }],
     };
+    const commits: CommitSpecs = {};
+    commits[sha] = { files: [{ path: "README.md", content: "I am not a Node project" }], }
     return {
         repoRef: pretendRepo,
-        files: [{ path: "README.md", content: "I am not a Node project" }],
+        commits,
         latestSha: sha,
         listEntry: r,
     };

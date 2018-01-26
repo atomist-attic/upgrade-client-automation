@@ -1,6 +1,7 @@
 import { MessageOptions } from "@atomist/automation-client/spi/message/MessageClient";
 import { SlackMessage } from "@atomist/slack-messages/SlackMessages";
 import { HandlerContext } from "@atomist/automation-client";
+import * as stringify from "json-stringify-safe";
 
 export class FakeContext {
 
@@ -27,14 +28,17 @@ export class FakeContext {
 
     public graphClient = {
         executeQueryFromFile: (path: string) => {
+            console.log("Returning graph for " + path);
             if (!this.graphs[path]) {
                 throw new Error("I don't know what to return for " + path)
             }
+            console.log("Graph: " + stringify(this.graphs[path]))
             return this.graphs[path];
-        }
+        },
     }
 
 }
-export function fakeContext(graphs: { [key: string]: any } = {}) : HandlerContext & FakeContext {
+
+export function fakeContext(graphs: { [key: string]: any } = {}): HandlerContext & FakeContext {
     return new FakeContext(graphs) as HandlerContext & FakeContext;
 }
