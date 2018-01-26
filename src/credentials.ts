@@ -9,4 +9,6 @@ export const atomistWebhookUrl = webhookCreds ? webhookCreds.url : "https://webh
 
 export const adminChannel = "upgrade-automation";
 
+export const adminUser = ["jessitron", "jessica"];
+
 export const teamId = "T29E48P34";

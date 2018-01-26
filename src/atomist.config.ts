@@ -22,6 +22,8 @@ import { updateNpmScripts } from "./npmScripts/command";
 import { findAutomationClientsCommand } from "./findAutomations/command";
 import { teamId } from "./credentials";
 import { FingerprintAutomationClientVersion } from "./dependencyVersion/FingerprintAutomationClientVersion";
+import { HelloWorld } from "./Hello";
+import { listAutomationClientsCommand } from "./dependencyVersion/ListAutomationClients";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -37,7 +39,9 @@ export const configuration: Configuration = {
         BeginReleaseHandler,
         () => new UpgradeTo0_5(),
         updateNpmScripts,
-        () => findAutomationClientsCommand
+        () => findAutomationClientsCommand,
+        listAutomationClientsCommand,
+        HelloWorld
     ],
     events: [
         () => new FingerprintAutomationClientVersion()

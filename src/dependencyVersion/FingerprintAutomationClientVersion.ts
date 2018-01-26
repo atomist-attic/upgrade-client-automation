@@ -69,16 +69,18 @@ export async function doFingerprint(githubToken: string, where: WhereToFingerpri
         path: "package-lock.json",
     };
     const plj = await GitHubFileWorld.fetchFileContents(githubToken, packageLock, where.sha);
-    logger.info("Contents of package-lock: " + plj);
     const fingerprint: Fingerprint = {
         name: AutomationClientVersionFingerprintName,
         sha: plj === 404 ? NotAnAutomationClient : calculateFingerprint(plj),
     };
-    console.log("Fingerprint: " + stringify(fingerprint));
-    return PushFingerprintWorld.pushFingerprint(where, fingerprint).then(() => fingerprint, error => {
-
-    return fingerprint;
-    }) ;
+    logger.info("pushing fingerprint: " + stringify(fingerprint));
+    return PushFingerprintWorld.pushFingerprint(where, fingerprint)
+        .then(() => fingerprint,
+            error => {
+                logger.warn("Error pushing fingerprint. Error: " + error.message +
+                    "\nfingerprint: " + stringify(fingerprint));
+                return fingerprint;
+            });
 }
 
 function providerFromRepo(repo) {

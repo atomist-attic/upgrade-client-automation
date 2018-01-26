@@ -8,17 +8,19 @@ import * as slack from "@atomist/slack-messages/SlackMessages";
 
 @Parameters()
 export class ListAutomationClientParameters {
-    @Secret(Secrets.OrgToken) // read: repo
+    @Secret(Secrets.UserToken) // read: repo
     public githubToken: string;
 }
 
 async function listAutomationClients(ctx: HandlerContext, params: ListAutomationClientParameters): Promise<HandlerResult> {
-    const repos = await ctx.graphClient.executeQueryFromFile<graphql.ListAutomationClients.Query, {}>(
+    const query = await ctx.graphClient.executeQueryFromFile<graphql.ListAutomationClients.Query, {}>(
         "graphql/list");
+
+    const repos = query.Repo.filter(r => r.name === "lifecycle-automation");
 
     // for the first test, assume we have
     const acbs: AutomationClientBranch[] = await Promise.all(_.flatten(
-        repos.Repo.map(oneRepo =>
+        repos.map(oneRepo =>
             oneRepo.branches.map(branch => gatherAutomationClientiness(params.githubToken, oneRepo, branch)))));
 
     return ctx.messageClient.respond(constructMessage(acbs))
@@ -74,4 +76,7 @@ function providerFromRepo(repo) {
 
 export const listAutomationClientsCommand: () => (HandleCommand<ListAutomationClientParameters>) =
     () => commandHandlerFrom(listAutomationClients,
-        ListAutomationClientParameters, "ListAutomationClients", "list automation clients");
+        ListAutomationClientParameters,
+        "ListAutomationClients",
+        "list repositories containing automation clients",
+        "list automation clients");
