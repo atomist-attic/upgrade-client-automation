@@ -28,6 +28,7 @@ import { reviewAll } from "@atomist/automation-client/operations/review/reviewAl
 import { andFilter } from "@atomist/automation-client/operations/common/repoFilter";
 import { CommandInvocationProvenance, dmTheAdmin, ProvenanceParameters } from "../npmScripts/repositoryOperationsInfra";
 import * as npmScripts from "../npmScripts/command";
+import { ProjectOperationCredentials } from "@atomist/automation-client/operations/common/ProjectOperationCredentials";
 
 
 const lookForClientDep: ProjectReviewer = (p: Project, context: HandlerContext) => {
@@ -165,7 +166,7 @@ function handleReviewOneOrMany<PARAMS extends EditorOrReviewerParameters>(review
                                                                           name: string,
                                                                           details: ReviewerCommandDetails<PARAMS>) {
     return (ctx: HandlerContext, parameters: PARAMS): Promise<ReviewResult> => {
-        const credentials = { token: parameters.targets.githubToken };
+        const credentials: ProjectOperationCredentials = parameters.targets.credentials;
         const repoFinder: RepoFinder = parameters.targets.repoRef ?
             () => Promise.resolve([parameters.targets.repoRef]) :
             details.repoFinder;

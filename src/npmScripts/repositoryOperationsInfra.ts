@@ -54,7 +54,7 @@ export function respondToActionResult(result: ActionResult<GitProject>): Promise
 }
 
 export function cloneTargetProject(params: EditorOrReviewerParameters): Promise<GitProject> {
-    const creds = { token: params.targets.githubToken };
+    const creds = params.targets.credentials;
     const repoId: RemoteRepoRef = params.targets.repoRef;
     return GitCommandGitProject.cloned(creds, repoId)
 }
@@ -74,7 +74,7 @@ export function dmTheAdmin(context: HandlerContext, params: BaseEditorOrReviewer
         logger.warn(result.error.stack);
     }
 
-    const creds = { token: params.targets.githubToken };
+    const creds = params.targets.credentials;
     const theAdmin = ["jessitron", "jessica"];
     const repoRef = params.targets.repoRef;
     let titleData = {}
@@ -92,7 +92,7 @@ export function dmTheAdmin(context: HandlerContext, params: BaseEditorOrReviewer
     const whatHappened = slack.user(params.provenance.slackUserId) +
         " invoked " + result.commandName +
         " in " + slack.channel(params.provenance.slackChannelId);
-    const messageText = result.success ? "Successful invocation of " + result.commandName + (result.message ? ": " + result.message: "") :
+    const messageText = result.success ? "Successful invocation of " + result.commandName + (result.message ? ": " + result.message : "") :
         "Failure: " + result.error;
 
     const nameAndVersion = configuration.name + "@" + configuration.version;
