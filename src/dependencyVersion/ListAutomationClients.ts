@@ -2,9 +2,10 @@ import { commandHandlerFrom } from "@atomist/automation-client/onCommand";
 import { Parameters } from "@atomist/automation-client/decorators";
 import { HandleCommand, HandlerContext, HandlerResult, Secret, Secrets, success } from "@atomist/automation-client";
 import * as graphql from "../typings/types";
-import * as _ from "lodash";
 import { doFingerprint } from "./FingerprintAutomationClientVersion";
 import * as slack from "@atomist/slack-messages/SlackMessages";
+import * as semver from "semver";
+
 
 @Parameters()
 export class ListAutomationClientParameters {
@@ -19,52 +20,96 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
     const repos = query.Repo.filter(r => r.name === "lifecycle-automation");
 
     // for the first test, assume we have
-    const acbs: AutomationClientBranch[] = await Promise.all(_.flatten(
-        repos.map(oneRepo =>
-            oneRepo.branches.map(branch => gatherAutomationClientiness(params.githubToken, oneRepo, branch)))));
+    const acbs: AutomationClientRepo[] = await Promise.all(
+        repos.map(r => analyseRepo(params.githubToken, r)));
 
     return ctx.messageClient.respond(constructMessage(acbs))
         .then(success);
 }
 
+async function analyseRepo(githubToken: string, repo: graphql.ListAutomationClients.Repo): Promise<AutomationClientRepo> {
+    const branches = await
+        Promise.all(
+            repo.branches.map(branch =>
+                gatherAutomationClientiness(githubToken, repo, branch)));
+    return {
+        repo: repo.name,
+        owner: repo.owner,
+        provider: providerFromRepo(repo),
+        branches,
+    }
+}
+
 interface AutomationClientBranch {
-    repo: string,
-    owner: string,
-    provider: { url: string, apiUrl: string},
     sha: string,
     branchName: string,
     automationClientVersion: string; // might be NotAnAutomationClient
+    isDefault: boolean,
+}
+
+interface AutomationClientRepo {
+    repo: string,
+    owner: string,
+    provider: { url: string, apiUrl: string },
+    branches: AutomationClientBranch[];
 }
 
 async function gatherAutomationClientiness(githubToken: string, repo: graphql.ListAutomationClients.Repo,
-                                     branch: graphql.ListAutomationClients.Branches): Promise<AutomationClientBranch> {
-    const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha};
+                                           branch: graphql.ListAutomationClients.Branches): Promise<AutomationClientBranch> {
+    const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha };
     const fingerprint = await doFingerprint(githubToken, where);
     return {
-        ...where,
+        sha: branch.commit.sha,
         branchName: branch.name,
-        automationClientVersion: fingerprint.sha
+        automationClientVersion: fingerprint.sha,
+        isDefault: branch.name === repo.defaultBranch,
     }
 }
 
-function constructMessage(acbs: AutomationClientBranch[]): slack.SlackMessage {
+function constructMessage(acrs: AutomationClientRepo[]): slack.SlackMessage {
     return {
-        text: `Found ${acbs.length} automation client`,
-        attachments: acbs.map(acb => toAttachment(acb))
+        text: `Found ${acrs.length} automation client`,
+        attachments: acrs.map(acr => toAttachment(acr)),
     }
 }
 
-function toAttachment(acb: AutomationClientBranch): slack.Attachment {
-    const repoDescription = `${acb.owner}/${acb.repo}`;
-    const repoLink = `${acb.provider.url}/${acb.owner}/${acb.repo}`;
+function toAttachment(acr: AutomationClientRepo): slack.Attachment {
+    const repoDescription = `${acr.owner}/${acr.repo}`;
+    const text = acr.branches.sort(byAutomationClientVersionDecreasing).map(toText).join("\n");
+    const repoLink = `${acr.provider.url}/${acr.owner}/${acr.repo}`;
     return {
         fallback: "an automation client",
         title: repoDescription,
         title_link: repoLink,
-        text: `*${acb.branchName}* ${acb.automationClientVersion}`,
+        text,
     }
 }
 
+function toText(acb: AutomationClientBranch): string {
+    const branchName = acb.isDefault ? // bold the default branch
+        "*" + acb.branchName + "*" : acb.branchName;
+    return `${branchName} ${acb.automationClientVersion}`
+}
+
+function byAutomationClientVersionDecreasing(acb1: AutomationClientBranch, acb2: AutomationClientBranch): number {
+    const v1: string = acb1.automationClientVersion;
+    const v2 = acb2.automationClientVersion;
+
+    // These can be links. They don't have to be semver
+    if (!semver.valid(v1) && !semver.valid(v2)) {
+        // both are invalid. Compare them as strings
+        return v1.localeCompare(v2);
+    }
+    if (!semver.valid(v1)) {
+        return 1;
+    }
+    if (!semver.valid(v2)) {
+        return -1;
+    }
+
+    return semver.rcompare(v1, v2)
+
+}
 
 
 function providerFromRepo(repo) {

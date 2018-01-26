@@ -15,7 +15,7 @@ import * as stringify from "json-stringify-safe";
 import { fakeContext } from "../fakeContext";
 import { HandlerContext } from "@atomist/automation-client";
 import { listAutomationClientsCommand } from "../../src/dependencyVersion/ListAutomationClients";
-import { CommitSpecs, ProjectInTheWorld } from "../jessFakesTheWorld";
+import { CommitSpecs, OneCommitInTheWorld, ProjectInTheWorld } from "../jessFakesTheWorld";
 
 
 describe("Observe: which automation clients are on each version", () => {
@@ -68,7 +68,9 @@ describe("Observe: which automation clients are on each version", () => {
 
     describe("A command reveals which repos are clients", () => {
         it("responds with a slack message listing all clients and their versions", done => {
-            const graph = populateTheWorld(automationClientProject("0.2.3"));
+            const graph = populateTheWorld(
+                automationClientProject("0.2.3",
+                    {"some-better-branch": "0.2.4"}));
 
             // really this graphql result should be part of populating the world
             const context = fakeContext(graph);
@@ -85,18 +87,6 @@ describe("Observe: which automation clients are on each version", () => {
 
 });
 
-function populateTheWorld(...projects: ProjectInTheWorld[]) {
-    projects.forEach(pitw => {
-        for (let sha in pitw.commits) {
-            projectsInTheWorld[sha] = InMemoryProject.from(pitw.repoRef,
-                ...pitw.commits[sha].files);
-        }
-    });
-
-    return {
-        "graphql/list": { Repo: projects.map(pitw => pitw.listEntry) },
-    }
-}
 
 
 const pretendRepo: RepoRef = { owner: "satellite-of-love", repo: "lifecycle-automation" };
@@ -109,10 +99,23 @@ const responseMessage = {
         fallback: "an automation client",
         title: PretendRepoDescription,
         title_link: PretendRepoLink,
-        text: `*master* 0.2.3`,
+        text: `some-better-branch 0.2.4\n*master* 0.2.3`,
     }],
 };
 
+
+function populateTheWorld(...projects: ProjectInTheWorld[]) {
+    projects.forEach(pitw => {
+        for (let sha in pitw.commits) {
+            projectsInTheWorld[sha] = InMemoryProject.from(pitw.repoRef,
+                ...pitw.commits[sha].files);
+        }
+    });
+
+    return {
+        "graphql/list": { Repo: projects.map(pitw => pitw.listEntry) },
+    }
+}
 /*
  * this is where I'd like to have a test framework.
  * I'm going to hard-code something instead.
@@ -146,8 +149,37 @@ function pushForFingerprinting(pitw: ProjectInTheWorld): graphql.PushForFingerpr
 function automationClientProject(defaultBranchAutomationClientVersion: string,
                                  otherBranches: { [key: string]: string | null } = {}): ProjectInTheWorld {
     const sha = randomSha();
-    const masterBranch = {
-        name: "master",
+
+    const branches: graphql.ListAutomationClients.Branches[] =
+        [branchFor("master", sha)];
+    const commits: CommitSpecs = {};
+    commits[sha] = commitFor(defaultBranchAutomationClientVersion);
+
+    for(let branchName in otherBranches) {
+        const anotherSha = randomSha();
+        branches.push(branchFor(branchName, anotherSha));
+        commits[anotherSha] = commitFor(otherBranches[branchName]);
+    }
+
+    const r: graphql.ListAutomationClients.Repo = {
+        defaultBranch: "master",
+        name: pretendRepo.repo,
+        owner: pretendRepo.owner,
+        org: {},
+        branches,
+    };
+
+    return {
+        repoRef: pretendRepo,
+        commits,
+        latestSha: sha,
+        listEntry: r,
+    };
+}
+
+function branchFor(name: string, sha: string): graphql.ListAutomationClients.Branches {
+    return {
+        name,
         pullRequests: [],
         commit: {
             sha,
@@ -155,25 +187,14 @@ function automationClientProject(defaultBranchAutomationClientVersion: string,
             fingerprints: [],
         },
     };
-    const r: graphql.ListAutomationClients.Repo = {
-        defaultBranch: "master",
-        name: pretendRepo.repo,
-        owner: pretendRepo.owner,
-        org: {},
-        branches: [masterBranch],
-    };
-    const commits: CommitSpecs = {};
-    commits[sha] = {
-        files: [
-            packageJson(defaultBranchAutomationClientVersion),
-            packageLockJson(defaultBranchAutomationClientVersion)],
-    };
+}
+
+function commitFor(automationClientVersion: string): OneCommitInTheWorld {
     return {
-        repoRef: pretendRepo,
-        commits,
-        latestSha: sha,
-        listEntry: r,
-    };
+        files: [
+            packageJson(automationClientVersion),
+            packageLockJson(automationClientVersion)],
+    }
 }
 
 function nonNodeProject(): ProjectInTheWorld {
