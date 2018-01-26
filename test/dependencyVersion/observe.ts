@@ -102,7 +102,7 @@ const PretendRepoDescription = "satellite-of-love/tuvalu";
 const PretendRepoLink = "https://github.com/satellite-of-love/tuvalu";
 
 const responseMessage = {
-    text: `I found 1 automation client.`,
+    text: `Found 1 automation client`,
     attachments: [{
         fallback: "an automation client",
         title: PretendRepoDescription,

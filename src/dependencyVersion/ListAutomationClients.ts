@@ -4,6 +4,7 @@ import { HandleCommand, HandlerContext, HandlerResult, Secret, Secrets, success 
 import * as graphql from "../typings/types";
 import * as _ from "lodash";
 import { doFingerprint } from "./FingerprintAutomationClientVersion";
+import * as slack from "@atomist/slack-messages/SlackMessages";
 
 @Parameters()
 export class ListAutomationClientParameters {
@@ -20,7 +21,7 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
         repos.Repo.map(oneRepo =>
             oneRepo.branches.map(branch => gatherAutomationClientiness(params.githubToken, oneRepo, branch)))));
 
-    return ctx.messageClient.respond("Hello")
+    return ctx.messageClient.respond(constructMessage(acbs))
         .then(success);
 }
 
@@ -43,6 +44,25 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
         automationClientVersion: fingerprint.sha
     }
 }
+
+function constructMessage(acbs: AutomationClientBranch[]): slack.SlackMessage {
+    return {
+        text: `Found ${acbs.length} automation client`,
+        attachments: acbs.map(acb => toAttachment(acb))
+    }
+}
+
+function toAttachment(acb: AutomationClientBranch): slack.Attachment {
+    const repoDescription = `${acb.owner}/${acb.repo}`;
+    const repoLink = `${acb.provider.url}/${acb.owner}/${acb.repo}`;
+    return {
+        fallback: "an automation client",
+        title: repoDescription,
+        title_link: repoLink,
+        text: `*${acb.branchName}* ${acb.automationClientVersion}`,
+    }
+}
+
 
 
 function providerFromRepo(repo) {
