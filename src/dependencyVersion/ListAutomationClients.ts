@@ -74,7 +74,7 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
                                            branch: graphql.ListAutomationClients.Branches): Promise<AutomationClientBranch> {
     try {
         const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha };
-        const existingFingerprint = _.get(branch,"commit.fingerprints", [])
+        const existingFingerprint = _.get(branch, "commit.fingerprints", [])
             .filter(f => f.name === AutomationClientVersionFingerprintName)[0];
         const fingerprint = existingFingerprint || await doFingerprint(githubToken, where);
         return {
@@ -100,18 +100,23 @@ function constructMessage(targetVersion: string, acrs: AutomationClientRepo[]): 
         `\nThe latest version of @atomist/automation-client is ` + targetVersion;
     return {
         text,
-        attachments: acrs.map(acr => toAttachment(acr)).slice(0, 25), // Slack only allows so many
+        attachments: acrs.map(acr => toAttachment(targetVersion, acr)).slice(0, 25), // Slack only allows so many
     }
 }
 
-function toAttachment(acr: AutomationClientRepo): slack.Attachment {
+function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.Attachment {
     const repoDescription = `${acr.owner}/${acr.repo}`;
     const text = acr.branches.sort(byAutomationClientVersionDecreasing).map(toText).join("\n");
     const repoLink = `${acr.provider.url}/${acr.owner}/${acr.repo}`;
+    const color = acr.branches
+        .find(b => b.isDefault)
+        .automationClientVersion === targetVersion ?
+        "#609930" : "#bb2030";
     return {
         fallback: "an automation client",
         title: repoDescription,
         title_link: repoLink,
+        color,
         text,
     }
 }

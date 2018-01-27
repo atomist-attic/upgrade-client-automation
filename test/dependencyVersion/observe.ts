@@ -17,6 +17,7 @@ import { modulesInTheWorld } from "../fakeNpm";
 import { HandlerContext } from "@atomist/automation-client";
 import { listAutomationClientsCommand } from "../../src/dependencyVersion/ListAutomationClients";
 import { CommitSpecs, OneCommitInTheWorld, ProjectInTheWorld } from "../jessFakesTheWorld";
+import * as slack from "@atomist/slack-messages/SlackMessages";
 
 
 describe("Observe: which automation clients are on each version", () => {
@@ -90,6 +91,25 @@ describe("Observe: which automation clients are on each version", () => {
                 })
                 .then(() => done(), done)
         })
+
+        it("colors green if the default branch is on the latest version", done => {
+            const graph = populateTheWorld(
+                automationClientProject("0.6.5",
+                    {
+                        "an-old-branch": "0.2.3",
+                        "gh-pages": null,
+                    }),
+                nonNodeProject());
+
+            // really this graphql result should be part of populating the world
+            const context = fakeContext(graph);
+            commandInvoked("list automation clients", context)
+                .then(() => {
+                    const response = context.responses[0] as slack.SlackMessage;
+                    assert.equal("#609930", response.attachments[0].color)
+                })
+                .then(() => done(), done)
+        })
     })
 
 });
@@ -105,6 +125,7 @@ const responseMessage = {
         fallback: "an automation client",
         title: PretendRepoDescription,
         title_link: PretendRepoLink,
+        color: "#bb2030",
         text: `some-better-branch 0.2.4
 *master* 0.2.3
 a-same-branch 0.2.3
