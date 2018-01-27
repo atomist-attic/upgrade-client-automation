@@ -6,7 +6,7 @@ import {
 } from "@atomist/automation-client";
 import * as graphql from "../typings/types";
 import {
-    AutomationClientVersionFingerprintName, doFingerprint,
+    AutomationClientVersionFingerprintName, determineFingerprint,
     NotAnAutomationClient,
 } from "./FingerprintAutomationClientVersion";
 import * as slack from "@atomist/slack-messages/SlackMessages";
@@ -69,7 +69,7 @@ interface AutomationClientRepo {
     owner: string,
     provider: { url: string, apiUrl: string },
     branches: AutomationClientBranch[];
-}
+};
 
 async function gatherAutomationClientiness(githubToken: string, repo: graphql.ListAutomationClients.Repo,
                                            branch: graphql.ListAutomationClients.Branches): Promise<AutomationClientBranch> {
@@ -78,7 +78,7 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
         const existingFingerprint = _.get(branch, "commit.fingerprints", [])
             .find(f => f.name === AutomationClientVersionFingerprintName);
         console.log("existing fingerprint: " + existingFingerprint);
-        const fingerprint = existingFingerprint || await doFingerprint(githubToken, where);
+        const fingerprint = existingFingerprint || await determineFingerprint(githubToken, where);
         return {
             sha: branch.commit.sha,
             branchName: branch.name,

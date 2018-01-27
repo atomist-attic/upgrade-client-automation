@@ -46,7 +46,7 @@ export class FingerprintAutomationClientVersion implements HandleEvent<graphql.P
                     owner: repo.owner, repo: repo.name,
                     provider: providerFromRepo(repo),
                     sha: afterSha,
-                })
+                });
 
             return {
                 code: 0, message:
@@ -60,19 +60,7 @@ export class FingerprintAutomationClientVersion implements HandleEvent<graphql.P
 
 //todo: support more general auth
 export async function doFingerprint(githubToken: string, where: WhereToFingerprint): Promise<Fingerprint> {
-    // get the contents, and if that worked, then calculate a fingerprint and push it
-    const packageLock: RemoteFileLocation = {
-        owner: where.owner,
-        name: where.repo,
-        baseUrl: where.provider.url,
-        apiUrl: where.provider.apiUrl,
-        path: "package-lock.json",
-    };
-    const plj = await GitHubFileWorld.fetchFileContents(githubToken, packageLock, where.sha);
-    const fingerprint: Fingerprint = {
-        name: AutomationClientVersionFingerprintName,
-        sha: plj === 404 ? NotAnAutomationClient : calculateFingerprint(plj),
-    };
+    const fingerprint: Fingerprint = await determineFingerprint(githubToken, where);
     logger.info("pushing fingerprint: " + stringify(fingerprint));
     return PushFingerprintWorld.pushFingerprint(where, fingerprint)
         .then(() => fingerprint,
@@ -81,6 +69,22 @@ export async function doFingerprint(githubToken: string, where: WhereToFingerpri
                     "\nfingerprint: " + stringify(fingerprint));
                 return fingerprint;
             });
+}
+
+export async function determineFingerprint(githubToken: string, where: WhereToFingerprint): Promise<Fingerprint> {
+    // get the contents, and if that worked, then calculate a fingerprint
+    const packageLock: RemoteFileLocation = {
+        owner: where.owner,
+        name: where.repo,
+        baseUrl: where.provider.url,
+        apiUrl: where.provider.apiUrl,
+        path: "package-lock.json",
+    };
+    const plj = await GitHubFileWorld.fetchFileContents(githubToken, packageLock, where.sha);
+    return {
+        name: AutomationClientVersionFingerprintName,
+        sha: plj === 404 ? NotAnAutomationClient : calculateFingerprint(plj),
+    };
 }
 
 function providerFromRepo(repo) {
