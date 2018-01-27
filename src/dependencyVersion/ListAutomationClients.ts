@@ -76,7 +76,8 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
     try {
         const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha };
         const existingFingerprint = _.get(branch, "commit.fingerprints", [])
-            .filter(f => f.name === AutomationClientVersionFingerprintName)[0];
+            .find(f => f.name === AutomationClientVersionFingerprintName);
+        console.log("existing fingerprint: " + existingFingerprint);
         const fingerprint = existingFingerprint || await doFingerprint(githubToken, where);
         return {
             sha: branch.commit.sha,

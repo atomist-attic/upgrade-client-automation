@@ -90,7 +90,7 @@ describe("Observe: which automation clients are on each version", () => {
                     assert.deepEqual(response, responseMessage)
                 })
                 .then(() => done(), done)
-        })
+        });
 
         it("colors green if the default branch is on the latest version", done => {
             const graph = populateTheWorld(
@@ -107,6 +107,24 @@ describe("Observe: which automation clients are on each version", () => {
                 .then(() => {
                     const response = context.responses[0] as slack.SlackMessage;
                     assert.equal("#609930", response.attachments[0].color)
+                })
+                .then(() => done(), done)
+        });
+
+        it("does not send an additional fingerprint if one exists", done => {
+            const p = automationClientProject({
+                automationClientVersion: "0.6.5",
+                running: false, fingerprinted: true,
+            });
+            const graph = populateTheWorld(p);
+
+            // really this graphql result should be part of populating the world
+            const context = fakeContext(graph);
+            commandInvoked("list automation clients", context)
+                .then(() => {
+                    // a fingerprint has been pushed
+                    const pushedFingerprint = observePushedFingerprints(p);
+                    assert(!pushedFingerprint);
                 })
                 .then(() => done(), done)
         })
@@ -179,32 +197,43 @@ function pushForFingerprinting(pitw: ProjectInTheWorld): graphql.PushForFingerpr
     return { Push: [push] }
 }
 
-type BranchInfo = { automationClientVersion: string, running: boolean } | string
+type DefaultedBranchInfo = BranchInfo | string | null
 
-function acv(bi: BranchInfo): string | null {
-    if (bi === null) { return null;}
-    return typeof(bi) === "string" ?
-        bi : bi.automationClientVersion;
+type BranchInfo = {
+    automationClientVersion: string,
+    running?: boolean, fingerprinted?: boolean
 }
 
-function running(bi: BranchInfo): boolean {
-    return (bi === null) || (typeof(bi) === "string") ?
-        false : bi.running;
+function isBranchInfo(dbi: DefaultedBranchInfo): dbi is BranchInfo {
+    return dbi && (typeof(dbi) !== "string");
 }
 
-function automationClientProject(defaultBranchAutomationClientVersion: BranchInfo,
-                                 otherBranches: { [key: string]: BranchInfo | null } = {}): ProjectInTheWorld {
+function applyDefault(bi: DefaultedBranchInfo): BranchInfo {
+    if (isBranchInfo(bi)) {
+        return bi;
+    }
+    return {
+        automationClientVersion: bi,
+        running: false,
+        fingerprinted: false,
+    }
+}
+
+function automationClientProject(defaultBranchAutomationClientVersion: DefaultedBranchInfo,
+                                 otherBranches: { [key: string]: DefaultedBranchInfo} = {}): ProjectInTheWorld {
+    const branchInfo = applyDefault(defaultBranchAutomationClientVersion);
     const sha = randomSha();
 
     const branches: graphql.ListAutomationClients.Branches[] =
-        [branchFor("master", sha, running(defaultBranchAutomationClientVersion))];
+        [branchFor("master", sha, branchInfo)];
     const commits: CommitSpecs = {};
-    commits[sha] = commitFor(acv(defaultBranchAutomationClientVersion));
+    commits[sha] = commitFor(branchInfo.automationClientVersion);
 
     for (let branchName in otherBranches) {
         const anotherSha = randomSha();
-        branches.push(branchFor(branchName, anotherSha, running(otherBranches[branchName])));
-        commits[anotherSha] = commitFor(acv(otherBranches[branchName]));
+        const anotherBranchInfo = applyDefault(otherBranches[branchName]);
+        branches.push(branchFor(branchName, anotherSha, anotherBranchInfo));
+        commits[anotherSha] = commitFor(anotherBranchInfo.automationClientVersion);
     }
 
     const r: graphql.ListAutomationClients.Repo = {
@@ -223,15 +252,18 @@ function automationClientProject(defaultBranchAutomationClientVersion: BranchInf
     };
 }
 
-function branchFor(name: string, sha: string, running: boolean): graphql.ListAutomationClients.Branches {
+function branchFor(name: string, sha: string,
+                   acv: BranchInfo): graphql.ListAutomationClients.Branches {
     return {
         name,
         pullRequests: [],
         commit: {
             sha,
             message: "I don't know",
-            fingerprints: [],
-            apps: running ? [{ state: "started", host: "outer space" }] : [],
+            fingerprints: acv.fingerprinted ? [{ data: undefined,
+                sha: acv.automationClientVersion,
+                name: AutomationClientVersionFingerprintName }] : [],
+            apps: acv.running ? [{ state: "started", host: "outer space" }] : [],
         },
     };
 }
