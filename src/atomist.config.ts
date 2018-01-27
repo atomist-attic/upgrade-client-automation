@@ -58,4 +58,8 @@ export const configuration: Configuration = {
             },
         },
     },
+    applicationEvents: {
+        enabled: true,
+        teamId
+    }
 };
