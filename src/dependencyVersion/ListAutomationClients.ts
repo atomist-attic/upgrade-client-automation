@@ -13,6 +13,8 @@ import * as slack from "@atomist/slack-messages/SlackMessages";
 import * as semver from "semver";
 import * as _ from "lodash";
 import { NpmWorld } from "./latestVersionFromNpm";
+import { adminChannel } from "../credentials";
+import * as stringify from "json-stringify-safe";
 
 
 @Parameters()
@@ -35,9 +37,17 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
 
     const targetVersion = await NpmWorld.latestVersion("@atomist/automation-client");
 
+    await spy(ctx, acrs);
+
     return ctx.messageClient.respond(constructMessage(targetVersion, relevant))
         .then(success);
 }
+
+async function spy(ctx: HandlerContext, acrs:  AutomationClientRepo[]) {
+    const reposes = acrs.map(ar => `${ar.owner}/${ar.repo}`).sort().join("\n");
+    return ctx.messageClient.addressChannels("Looking for automation clients in:\n" + reposes , adminChannel)
+}
+
 
 async function analyseRepo(githubToken: string, repo: graphql.ListAutomationClients.Repo): Promise<AutomationClientRepo> {
     const allBranches = await
@@ -77,7 +87,7 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
         const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha };
         const existingFingerprint = _.get(branch, "commit.fingerprints", [])
             .find(f => f.name === AutomationClientVersionFingerprintName);
-        console.log("existing fingerprint: " + existingFingerprint);
+        console.log("existing fingerprint: " + stringify(existingFingerprint));
         const fingerprint = existingFingerprint || await determineFingerprint(githubToken, where);
         return {
             sha: branch.commit.sha,
@@ -104,8 +114,12 @@ function constructMessage(targetVersion: string, acrs: AutomationClientRepo[]): 
         `\nThe latest version of @atomist/automation-client is ` + targetVersion;
     return {
         text,
-        attachments: acrs.map(acr => toAttachment(targetVersion, acr)).slice(0, 25), // Slack only allows so many
+        attachments: acrs.sort(byName).map(acr => toAttachment(targetVersion, acr)).slice(0, 25), // Slack only allows so many
     }
+}
+
+function byName(acr1: AutomationClientRepo, acr2: AutomationClientRepo): number {
+    return acr1.repo.localeCompare(acr2.repo);
 }
 
 function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.Attachment {

@@ -138,7 +138,8 @@ const PretendRepoDescription = "satellite-of-love/lifecycle-automation";
 const PretendRepoLink = "https://github.com/satellite-of-love/lifecycle-automation";
 
 const responseMessage = {
-    text: `Found 1 automation client\nThe latest version of @atomist/automation-client is 0.6.5`,
+    text: `Found 1 automation client
+The latest version of @atomist/automation-client is 0.6.5`,
     attachments: [{
         fallback: "an automation client",
         title: PretendRepoDescription,
