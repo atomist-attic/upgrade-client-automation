@@ -84,7 +84,7 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
             branchName: branch.name,
             automationClientVersion: fingerprint.sha,
             isDefault: branch.name === repo.defaultBranch,
-            isRunning: _.get(branch, "commit.apps", []).length > 0
+            isRunning: _.get(branch, "commit.apps", []).length > 0,
         }
 
     } catch (err) {
@@ -110,8 +110,9 @@ function constructMessage(targetVersion: string, acrs: AutomationClientRepo[]): 
 
 function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.Attachment {
     const repoDescription = `${acr.owner}/${acr.repo}`;
-    const text = acr.branches.sort(byAutomationClientVersionDecreasing).map(toText).join("\n");
     const repoLink = `${acr.provider.url}/${acr.owner}/${acr.repo}`;
+    const text = acr.branches.sort(byAutomationClientVersionDecreasing)
+        .map(b => toText(repoLink, b)).join("\n");
     const defaultBranch = acr.branches.find(b => b.isDefault)
     const color = (defaultBranch && defaultBranch.automationClientVersion === targetVersion) ?
         "#609930" : "#bb2030";
@@ -124,10 +125,11 @@ function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.A
     }
 }
 
-function toText(acb: AutomationClientBranch): string {
-    const prefix = acb.isRunning? ":running: " : "";
+function toText(repoLink: string, acb: AutomationClientBranch): string {
+    const prefix = acb.isRunning ? ":running: " : "";
     const branchName = acb.isDefault ? // bold the default branch
-        "*" + acb.branchName + "*" : acb.branchName;
+        "*" + acb.branchName + "*" :
+        slack.url(repoLink + "/tree/" + acb.branchName, acb.branchName);
     return `${prefix}${branchName} ${acb.automationClientVersion}`
 }
 

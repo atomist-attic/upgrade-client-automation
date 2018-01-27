@@ -144,10 +144,10 @@ const responseMessage = {
         title: PretendRepoDescription,
         title_link: PretendRepoLink,
         color: "#bb2030",
-        text: `:running: some-better-branch 0.2.4
+        text: `:running: <https://github.com/satellite-of-love/lifecycle-automation/tree/some-better-branch|some-better-branch> 0.2.4
 *master* 0.2.3
-a-same-branch 0.2.3
-custom-branch https://r.atomist.com/sakfjhqwekhrquef`,
+<https://github.com/satellite-of-love/lifecycle-automation/tree/a-same-branch|a-same-branch> 0.2.3
+<https://github.com/satellite-of-love/lifecycle-automation/tree/custom-branch|custom-branch> https://r.atomist.com/sakfjhqwekhrquef`,
     }],
 };
 
