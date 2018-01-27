@@ -130,7 +130,9 @@ function toText(repoLink: string, acb: AutomationClientBranch): string {
     const branchName = acb.isDefault ? // bold the default branch
         "*" + acb.branchName + "*" :
         slack.url(repoLink + "/tree/" + acb.branchName, acb.branchName);
-    return `${prefix}${branchName} ${acb.automationClientVersion}`
+    const versionName = acb.automationClientVersion.startsWith("http") ?
+        "(custom)" : acb.automationClientVersion;
+    return `${prefix}${branchName} ${versionName}`
 }
 
 function byAutomationClientVersionDecreasing(acb1: AutomationClientBranch, acb2: AutomationClientBranch): number {
