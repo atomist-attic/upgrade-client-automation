@@ -31,7 +31,7 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
 
     // for the first test, assume we have
     const acrs: AutomationClientRepo[] = await Promise.all(
-        repos.map(r => analyseRepo(params.githubToken, r)));
+        repos.filter(reposToIgnore).map(r => analyseRepo(params.githubToken, r)));
 
     const relevant = acrs.filter(acr => acr.isAutomationClient);
 
@@ -41,6 +41,10 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
 
     return ctx.messageClient.respond(constructMessage(targetVersion, relevant))
         .then(success);
+}
+
+function reposToIgnore(r: graphql.ListAutomationClients.Repo): boolean {
+    return r.owner !== "scratches"; // not sure why these are linked but I don't care about them
 }
 
 async function spy(ctx: HandlerContext, acrs:  AutomationClientRepo[]) {

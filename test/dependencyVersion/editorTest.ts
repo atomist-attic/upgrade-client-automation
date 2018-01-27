@@ -2,8 +2,15 @@
 import "mocha";
 import * as assert from "power-assert";
 
-describe("the editor that changes the version of the library", () => {
+describe("updating @atomist/automation-client dependencies", () => {
 
-    it("updates to the new version");
+    it("updates package.json to the new version", done => {
+
+
+    });
+
+    it("runs npm install to update package-lock.json", done => {
+
+    })
 
 });
