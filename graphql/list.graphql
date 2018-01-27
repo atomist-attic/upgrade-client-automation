@@ -22,6 +22,10 @@ query ListAutomationClients {
                     sha
                     name
                 }
+                apps(state: "started") {
+                    state
+                    host
+                }
             }
         }
     }

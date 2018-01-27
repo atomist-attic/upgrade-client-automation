@@ -73,7 +73,7 @@ describe("Observe: which automation clients are on each version", () => {
             const graph = populateTheWorld(
                 automationClientProject("0.2.3",
                     {
-                        "some-better-branch": "0.2.4",
+                        "some-better-branch": { automationClientVersion: "0.2.4", running: true },
                         "a-same-branch": "0.2.3",
                         "custom-branch": "https://r.atomist.com/sakfjhqwekhrquef",
                         "gh-pages": null,
@@ -87,7 +87,7 @@ describe("Observe: which automation clients are on each version", () => {
                     assert(context.responses.length === 1);
                     const response = context.responses[0];
                     // todo: link to what this looks like in the Slack message play page
-                    assert.deepEqual(responseMessage, response, stringify(response))
+                    assert.deepEqual(response, responseMessage)
                 })
                 .then(() => done(), done)
         })
@@ -126,7 +126,7 @@ const responseMessage = {
         title: PretendRepoDescription,
         title_link: PretendRepoLink,
         color: "#bb2030",
-        text: `some-better-branch 0.2.4
+        text: `:running: some-better-branch 0.2.4
 *master* 0.2.3
 a-same-branch 0.2.3
 custom-branch https://r.atomist.com/sakfjhqwekhrquef`,
@@ -179,19 +179,32 @@ function pushForFingerprinting(pitw: ProjectInTheWorld): graphql.PushForFingerpr
     return { Push: [push] }
 }
 
-function automationClientProject(defaultBranchAutomationClientVersion: string,
-                                 otherBranches: { [key: string]: string | null } = {}): ProjectInTheWorld {
+type BranchInfo = { automationClientVersion: string, running: boolean } | string
+
+function acv(bi: BranchInfo): string | null {
+    if (bi === null) { return null;}
+    return typeof(bi) === "string" ?
+        bi : bi.automationClientVersion;
+}
+
+function running(bi: BranchInfo): boolean {
+    return (bi === null) || (typeof(bi) === "string") ?
+        false : bi.running;
+}
+
+function automationClientProject(defaultBranchAutomationClientVersion: BranchInfo,
+                                 otherBranches: { [key: string]: BranchInfo | null } = {}): ProjectInTheWorld {
     const sha = randomSha();
 
     const branches: graphql.ListAutomationClients.Branches[] =
-        [branchFor("master", sha)];
+        [branchFor("master", sha, running(defaultBranchAutomationClientVersion))];
     const commits: CommitSpecs = {};
-    commits[sha] = commitFor(defaultBranchAutomationClientVersion);
+    commits[sha] = commitFor(acv(defaultBranchAutomationClientVersion));
 
     for (let branchName in otherBranches) {
         const anotherSha = randomSha();
-        branches.push(branchFor(branchName, anotherSha));
-        commits[anotherSha] = commitFor(otherBranches[branchName]);
+        branches.push(branchFor(branchName, anotherSha, running(otherBranches[branchName])));
+        commits[anotherSha] = commitFor(acv(otherBranches[branchName]));
     }
 
     const r: graphql.ListAutomationClients.Repo = {
@@ -210,7 +223,7 @@ function automationClientProject(defaultBranchAutomationClientVersion: string,
     };
 }
 
-function branchFor(name: string, sha: string): graphql.ListAutomationClients.Branches {
+function branchFor(name: string, sha: string, running: boolean): graphql.ListAutomationClients.Branches {
     return {
         name,
         pullRequests: [],
@@ -218,6 +231,7 @@ function branchFor(name: string, sha: string): graphql.ListAutomationClients.Bra
             sha,
             message: "I don't know",
             fingerprints: [],
+            apps: running ? [{ state: "started", host: "outer space" }] : [],
         },
     };
 }
@@ -246,6 +260,7 @@ function nonNodeProject(): ProjectInTheWorld {
                 sha,
                 message: "I don't know",
                 fingerprints: [],
+                apps: [],
             },
         }],
     };

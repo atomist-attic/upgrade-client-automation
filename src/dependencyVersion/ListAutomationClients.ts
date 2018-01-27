@@ -60,6 +60,7 @@ interface AutomationClientBranch {
     branchName: string,
     automationClientVersion: string; // might be NotAnAutomationClient
     isDefault: boolean,
+    isRunning: boolean,
 }
 
 interface AutomationClientRepo {
@@ -82,6 +83,7 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
             branchName: branch.name,
             automationClientVersion: fingerprint.sha,
             isDefault: branch.name === repo.defaultBranch,
+            isRunning: _.get(branch, "commit.apps", []).length > 0
         }
 
     } catch (err) {
@@ -89,8 +91,9 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
         return {
             sha: _.get(branch, "commit.sha", "???"),
             branchName: branch ? branch.name : "???",
-            automationClientVersion: "???",
+            automationClientVersion: NotAnAutomationClient,
             isDefault: false,
+            isRunning: false,
         }
     }
 }
@@ -108,9 +111,8 @@ function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.A
     const repoDescription = `${acr.owner}/${acr.repo}`;
     const text = acr.branches.sort(byAutomationClientVersionDecreasing).map(toText).join("\n");
     const repoLink = `${acr.provider.url}/${acr.owner}/${acr.repo}`;
-    const color = acr.branches
-        .find(b => b.isDefault)
-        .automationClientVersion === targetVersion ?
+    const defaultBranch = acr.branches.find(b => b.isDefault)
+    const color = (defaultBranch && defaultBranch.automationClientVersion === targetVersion) ?
         "#609930" : "#bb2030";
     return {
         fallback: "an automation client",
@@ -122,9 +124,10 @@ function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.A
 }
 
 function toText(acb: AutomationClientBranch): string {
+    const prefix = acb.isRunning? ":running: " : "";
     const branchName = acb.isDefault ? // bold the default branch
         "*" + acb.branchName + "*" : acb.branchName;
-    return `${branchName} ${acb.automationClientVersion}`
+    return `${prefix}${branchName} ${acb.automationClientVersion}`
 }
 
 function byAutomationClientVersionDecreasing(acb1: AutomationClientBranch, acb2: AutomationClientBranch): number {
