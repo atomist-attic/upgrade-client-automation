@@ -17,7 +17,7 @@ import { GitCommandGitProject } from "@atomist/automation-client/project/git/Git
 import { isLocalProject } from "@atomist/automation-client/project/local/LocalProject";
 import { Project } from "@atomist/automation-client/project/Project";
 import { CachingDirectoryManager } from "@atomist/automation-client/spi/clone/CachingDirectoryManager";
-import { getLastReleasedVersionFromChangelog, populateChangelog } from "../dependencyVersion/editor";
+import { getLastReleasedVersionFromChangelog, populateChangelog } from "../changelog/editor";
 
 const SemanticVersionPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 

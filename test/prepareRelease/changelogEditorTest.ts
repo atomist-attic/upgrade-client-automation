@@ -1,7 +1,7 @@
 import { InMemoryProject } from "@atomist/automation-client/project/mem/InMemoryProject";
 import "mocha";
 import * as assert from "power-assert";
-import { modifyChangelogContent, populateChangelog } from "../../src/dependencyVersion/editor";
+import { modifyChangelogContent, populateChangelog } from "../../src/changelog/editor";
 
 const SampleChangeLog = `# Change Log
 

@@ -1,8 +1,5 @@
 import { HandlerContext, logger } from "@atomist/automation-client";
-import {
-    ProjectEditor, SimpleProjectEditor,
-    successfulEdit,
-} from "@atomist/automation-client/operations/edit/projectEditor";
+import { ProjectEditor, successfulEdit, } from "@atomist/automation-client/operations/edit/projectEditor";
 import { Project } from "@atomist/automation-client/project/Project";
 
 export function populateChangelog(nextVersion: string, releaseDate: string, commitSummaries: string[]): ProjectEditor {
