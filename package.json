@@ -24,6 +24,7 @@
     "app-root-path": "^2.0.1",
     "cfenv": "^1.0.4",
     "json-stringify-safe": "^5.0.1",
+    "latest-version": "^3.1.0",
     "semver": "^5.5.0",
     "tmp-promise": "^1.0.4"
   },

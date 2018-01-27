@@ -13,6 +13,7 @@ import {
 } from "../../src/dependencyVersion/FingerprintAutomationClientVersion";
 import * as stringify from "json-stringify-safe";
 import { fakeContext } from "../fakeContext";
+import { modulesInTheWorld } from "../fakeNpm";
 import { HandlerContext } from "@atomist/automation-client";
 import { listAutomationClientsCommand } from "../../src/dependencyVersion/ListAutomationClients";
 import { CommitSpecs, OneCommitInTheWorld, ProjectInTheWorld } from "../jessFakesTheWorld";
@@ -99,7 +100,7 @@ const PretendRepoDescription = "satellite-of-love/lifecycle-automation";
 const PretendRepoLink = "https://github.com/satellite-of-love/lifecycle-automation";
 
 const responseMessage = {
-    text: `Found 1 automation client`,
+    text: `Found 1 automation client\nThe latest version of @atomist/automation-client is 0.6.5`,
     attachments: [{
         fallback: "an automation client",
         title: PretendRepoDescription,
@@ -111,8 +112,10 @@ custom-branch https://r.atomist.com/sakfjhqwekhrquef`,
     }],
 };
 
+const LatestAutomationClient = "0.6.5";
 
 function populateTheWorld(...projects: ProjectInTheWorld[]) {
+    modulesInTheWorld["@atomist/automation-client"] = LatestAutomationClient;
     projects.forEach(pitw => {
         for (let sha in pitw.commits) {
             projectsInTheWorld[sha] = InMemoryProject.from(pitw.repoRef,

@@ -5,10 +5,14 @@ import {
     success,
 } from "@atomist/automation-client";
 import * as graphql from "../typings/types";
-import { doFingerprint, NotAnAutomationClient } from "./FingerprintAutomationClientVersion";
+import {
+    AutomationClientVersionFingerprintName, doFingerprint,
+    NotAnAutomationClient,
+} from "./FingerprintAutomationClientVersion";
 import * as slack from "@atomist/slack-messages/SlackMessages";
 import * as semver from "semver";
 import * as _ from "lodash";
+import { NpmWorld } from "./latestVersionFromNpm";
 
 
 @Parameters()
@@ -29,7 +33,9 @@ async function listAutomationClients(ctx: HandlerContext, params: ListAutomation
 
     const relevant = acrs.filter(acr => acr.isAutomationClient);
 
-    return ctx.messageClient.respond(constructMessage(relevant))
+    const targetVersion = await NpmWorld.latestVersion("@atomist/automation-client");
+
+    return ctx.messageClient.respond(constructMessage(targetVersion, relevant))
         .then(success);
 }
 
@@ -68,7 +74,9 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
                                            branch: graphql.ListAutomationClients.Branches): Promise<AutomationClientBranch> {
     try {
         const where = { repo: repo.name, owner: repo.owner, provider: providerFromRepo(repo), sha: branch.commit.sha };
-        const fingerprint = await doFingerprint(githubToken, where);
+        const existingFingerprint = _.get(branch,"commit.fingerprints", [])
+            .filter(f => f.name === AutomationClientVersionFingerprintName)[0];
+        const fingerprint = existingFingerprint || await doFingerprint(githubToken, where);
         return {
             sha: branch.commit.sha,
             branchName: branch.name,
@@ -87,9 +95,11 @@ async function gatherAutomationClientiness(githubToken: string, repo: graphql.Li
     }
 }
 
-function constructMessage(acrs: AutomationClientRepo[]): slack.SlackMessage {
+function constructMessage(targetVersion: string, acrs: AutomationClientRepo[]): slack.SlackMessage {
+    const text = `Found ${acrs.length} automation client` + (acrs.length === 1 ? "" : "s") +
+        `\nThe latest version of @atomist/automation-client is ` + targetVersion;
     return {
-        text: `Found ${acrs.length} automation client${acrs.length === 1 ? "" : "s"}`,
+        text,
         attachments: acrs.map(acr => toAttachment(acr)).slice(0, 25), // Slack only allows so many
     }
 }
