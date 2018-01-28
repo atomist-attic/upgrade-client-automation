@@ -1,7 +1,6 @@
-
 import { Requirement } from "./TypescriptEditing";
 import { Project } from "@atomist/automation-client/project/Project";
-import { Report, reportImplemented } from "./Report";
+import { Report, reportImplemented, reportUnimplemented } from "./Report";
 import { logger } from "@atomist/automation-client";
 
 export class AddMigrationRequirement extends Requirement {
@@ -24,21 +23,37 @@ export function isAddMigrationRequirement(r: Requirement): r is AddMigrationRequ
     return r.kind === "Add Migration Requirement";
 }
 
-function applyAddMigration(project: Project, requirement: AddMigrationRequirement): Promise<Report> {
+async function applyAddMigration(project: Project, requirement: AddMigrationRequirement): Promise<Report> {
     const name = requirement.describe().replace(/[^A-Za-z0-9]/g, "-");
 
-    return getCurrentVersion(project)
-        .then(v => project.addFile(`migration/${v}/${name}.json`,
-            JSON.stringify(requirement.downstreamRequirement, null, 2)))
-        .then(() => addBreakingChangeToChangelog(project, requirement.downstreamRequirement.describe()))
-        .then(() => reportImplemented(requirement))
+    const v = await getCurrentVersion(project);
+    const migrationFile = `migration/${v}/${name}.json`;
+    await project.addFile(migrationFile,
+        JSON.stringify(requirement.downstreamRequirement, null, 2));
+    const changeLogUpdated: boolean = await addBreakingChangeToChangelog(project,
+        requirement.downstreamRequirement.describe());
+    if (!changeLogUpdated) {
+        return reportUnimplemented(requirement, "it was already there")
+    }
+    return reportImplemented(requirement);
 }
 
-function addBreakingChangeToChangelog(project: Project, description: string) {
+async function addBreakingChangeToChangelog(project: Project, description: string): Promise<boolean> {
     logger.info("Adding to changelog: " + description);
-    return project.findFile("CHANGELOG.md").then(f => f.getContent()
-        .then(content => f.setContent(addBreakingChange(description, content))))
-        .catch( noChangelog => logger.warn("Error updating changelog: " + noChangelog))
+    try {
+        const f = await project.findFile("CHANGELOG.md");
+        const content = await f.getContent();
+        if (content.includes(description)) {
+            logger.info("Changelog already has change: " + description);
+            return false;
+        }
+        await f.setContent(addBreakingChange(description, content));
+        return true;
+    }
+    catch (noChangelog) {
+        logger.warn("Error updating changelog: " + noChangelog);
+        return false;
+    }
 }
 
 function addBreakingChange(description: string, content: string): string {
