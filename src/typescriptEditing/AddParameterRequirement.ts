@@ -26,6 +26,7 @@ import {
 import { PassArgumentRequirement } from "./PassArgumentRequirement";
 import { PassDummyInTestsRequirement } from "./PassDummyInTestRequirement";
 import { emptyReport, Report, reportImplemented, reportUnimplemented } from "./Report";
+import { printMatch } from "../jess/printMatchStructure";
 
 export class AddParameterRequirement extends Requirement {
     public readonly kind: "Add Parameter" = "Add Parameter";
@@ -210,6 +211,7 @@ function implementAddParameter(project: Project, requirement: AddParameterRequir
                         return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.");
                     } else {
                         const functionDeclaration = matches[0];
+                        console.log(printMatch(functionDeclaration).join("\n"));
                         const openParen = requireExactlyOne(functionDeclaration.evaluateExpression("/OpenParenToken"),
                             "wtf where is open paren");
 

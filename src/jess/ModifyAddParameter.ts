@@ -13,6 +13,7 @@ import {
     pathExpressionIntoScope,
 } from "../typescriptEditing/functionCallIdentifier";
 import * as TypescriptEditing from "../typescriptEditing/TypescriptEditing";
+import { printMatch, printStructureOfFile } from "./printMatchStructure";
 
 /*
  * To run this while working:
@@ -25,28 +26,6 @@ import * as TypescriptEditing from "../typescriptEditing/TypescriptEditing";
  * next:
  */
 
-function printStructureOfFile(project: Project, path: string,
-                              howToPrint: (s: string) => void = s => logger.info(s)) {
-    return findMatches(project, TypeScriptES6FileParser, path,
-        `/SourceFile`)
-        .then(matches => {
-            if (matches.length === 0) {
-                logger.info("no matches found!");
-            }
-            matches.forEach(m => {
-                howToPrint(printMatch(m).join("\n"));
-            });
-        });
-}
-
-function printMatch(m: TreeNode): string[] {
-    let me = m.$name + "/";
-    if (!m.$children) {
-        me = m.$name + " = " + m.$value;
-    }
-    const myBabies = _.flatMap(m.$children, ch => printMatch(ch).map(o => " " + o));
-    return [me].concat(myBabies);
-}
 
 function runInSequence(project: Project, activities: Array<() => Promise<void>>): Promise<any> {
     return activities.reduce(
