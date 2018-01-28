@@ -87,7 +87,7 @@ function getAllMatches(r: RegExp, s: string): string[] {
     return output;
 }
 
-describe.skip("actually run it", () => {
+describe("actually run it", () => {
 
     it("just run it", done => {
         (logger as any).level = "info";

@@ -27,6 +27,8 @@ import { PassArgumentRequirement } from "./PassArgumentRequirement";
 import { PassDummyInTestsRequirement } from "./PassDummyInTestRequirement";
 import { emptyReport, Report, reportImplemented, reportUnimplemented } from "./Report";
 import { printMatch } from "../jess/printMatchStructure";
+import * as stringify from "json-stringify-safe";
+
 
 export class AddParameterRequirement extends Requirement {
     public readonly kind: "Add Parameter" = "Add Parameter";
@@ -211,7 +213,12 @@ function implementAddParameter(project: Project, requirement: AddParameterRequir
                         return reportUnimplemented(requirement, "More than one function declaration matched. I'm confused.");
                     } else {
                         const functionDeclaration = matches[0];
-                        console.log(printMatch(functionDeclaration).join("\n"));
+                        const existingParameters = functionDeclaration.evaluateExpression("/SyntaxList/Parameter/Identifier");
+                        if (existingParameters &&
+                            existingParameters.length > 0 && (console.log("yo Jess:" + existingParameters[0].$value) || true) &&
+                            existingParameters[0].$value === requirement.parameterName) {
+                            return reportUnimplemented(requirement, "This is already the first parameter")
+                        }
                         const openParen = requireExactlyOne(functionDeclaration.evaluateExpression("/OpenParenToken"),
                             "wtf where is open paren");
 
