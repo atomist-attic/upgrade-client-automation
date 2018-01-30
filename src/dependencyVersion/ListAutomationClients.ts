@@ -15,6 +15,8 @@ import * as _ from "lodash";
 import { NpmWorld } from "./latestVersionFromNpm";
 import { adminChannel } from "../credentials";
 import * as stringify from "json-stringify-safe";
+import { buttonForCommand } from "@atomist/automation-client/spi/message/MessageClient";
+import { UpgradeAutomationClientLibraryCommandName, UpgradeAutomationClientLibraryEditor } from "./UpdateVersionEditor";
 
 
 @Parameters()
@@ -126,7 +128,8 @@ function byName(acr1: AutomationClientRepo, acr2: AutomationClientRepo): number 
     return acr1.repo.localeCompare(acr2.repo);
 }
 
-function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.Attachment {
+function toAttachment(targetVersion: string,
+                      acr: AutomationClientRepo): slack.Attachment {
     const repoDescription = `${acr.owner}/${acr.repo}`;
     const repoLink = `${acr.provider.url}/${acr.owner}/${acr.repo}`;
     const text = acr.branches.sort(byAutomationClientVersionDecreasing)
@@ -134,12 +137,20 @@ function toAttachment(targetVersion: string, acr: AutomationClientRepo): slack.A
     const defaultBranch = acr.branches.find(b => b.isDefault)
     const color = (defaultBranch && defaultBranch.automationClientVersion === targetVersion) ?
         "#609930" : "#bb2030";
+
     return {
         fallback: "an automation client",
         title: repoDescription,
         title_link: repoLink,
         color,
         text,
+        actions: [
+            buttonForCommand({ text: "Upgrade" },
+                UpgradeAutomationClientLibraryCommandName,
+                {
+                    "targets.repo": acr.repo,
+                    "targets.owner": acr.owner,
+                })]
     }
 }
 

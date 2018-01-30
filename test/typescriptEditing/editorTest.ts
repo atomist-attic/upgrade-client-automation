@@ -839,6 +839,51 @@ describe("populating dummy in test", () => {
             })
             .then(() => done(), done);
     });
+
+    it("passes the dummy to method calls", done => {
+        const fileOfInterest = "test/Something.ts";
+        const input = InMemoryProject.of(
+            {
+                path: fileOfInterest, content: `import \"mocha\";\n
+
+              it("should run repos query and clone repo", done => {
+                const repo1 = org.repo[0];
+                return GitCommandGitProject.cloned({ token: GitHubToken },
+                    new GitHubRepoRef(repo1.owner, repo1.name))
+                    .then(p => {
+                        const gitHead = p.findFileSync(".git/HEAD");
+                        assert(gitHead);
+                        assert(gitHead.path === ".git/HEAD");
+                    });
+              });
+             `,
+            });
+
+        const instruction: PassDummyInTestsRequirement = new PassDummyInTestsRequirement({
+            functionWithAdditionalParameter: {
+                enclosingScope: {
+                    kind: "class around method",
+                    name: "GitCommandGitProject",
+                    exported: true,
+                },
+                name: "cloned",
+                filePath: "src/project/git/GitCommandGitProject.ts",
+                access: { kind: "PublicFunctionAccess" },
+            },
+            dummyValue: "{} as HandlerContext",
+            additionalImport: {
+                kind: "library", name: "HandlerContext",
+                location: "@atomist/automation-client",
+            },
+        });
+
+        implement(input, instruction).then(() => input.flush())
+            .then(() => {
+                const after = input.findFileSync(fileOfInterest).getContentSync();
+                assert(after.includes("GitCommandGitProject.cloned({} as HandlerContext"), after);
+            })
+            .then(() => done(), done);
+    });
 });
 
 function printStructureOfFile(project: Project, path: string) {
@@ -1025,7 +1070,7 @@ describe.skip("actually run it", () => {
             const originalRequirement = new AddParameterRequirement({
                 functionWithAdditionalParameter: functionOfInterest,
                 parameterName: "token",
-                parameterType: { kind: "built-in", name: "string"},
+                parameterType: { kind: "built-in", name: "string" },
                 why: "so I can get file contents from github",
             });
 

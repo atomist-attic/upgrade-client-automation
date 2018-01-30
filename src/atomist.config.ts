@@ -24,6 +24,7 @@ import { teamId } from "./credentials";
 import { FingerprintAutomationClientVersion } from "./dependencyVersion/FingerprintAutomationClientVersion";
 import { HelloWorld } from "./Hello";
 import { listAutomationClientsCommand } from "./dependencyVersion/ListAutomationClients";
+import { UpgradeAutomationClientLibraryEditor } from "./dependencyVersion/UpdateVersionEditor";
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
@@ -41,7 +42,8 @@ export const configuration: Configuration = {
         updateNpmScripts,
         () => findAutomationClientsCommand,
         listAutomationClientsCommand,
-        HelloWorld
+        HelloWorld,
+        UpgradeAutomationClientLibraryEditor
     ],
     events: [
         () => new FingerprintAutomationClientVersion()

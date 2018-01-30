@@ -19,7 +19,7 @@ import {
 } from "./addImport";
 import {
     FunctionCallIdentifier, functionCallIdentifierFromTreeNode, functionCallPathExpression,
-    functionDeclarationPathExpression, globFromAccess,
+    functionDeclarationPathExpression, globFromAccess, isPublic,
     isPublicFunctionAccess, isPublicMethodAccess, qualifiedName,
     sameFunctionCallIdentifier,
 } from "./functionCallIdentifier";
@@ -101,8 +101,7 @@ export class AddParameterRequirement extends Requirement {
     }
 
     public isExternallyFacing() {
-        return isPublicFunctionAccess(this.functionWithAdditionalParameter.access)
-            || isPublicMethodAccess(this.functionWithAdditionalParameter.access);
+        return isPublic(this.functionWithAdditionalParameter.access)
     }
 }
 
@@ -121,7 +120,8 @@ function findConsequencesOfAddParameter(project: Project, requirement: AddParame
     logger.info("Looking for calls in : " + callWithinFunction);
     logger.info("looking in: " + globFromAccess(requirement.functionWithAdditionalParameter));
 
-    const testConsequences = isPublicFunctionAccess(requirement.functionWithAdditionalParameter.access) && requirement.populateInTests ?
+    const testConsequences = isPublic(requirement.functionWithAdditionalParameter.access) &&
+    requirement.populateInTests ?
         concomitantChange(new PassDummyInTestsRequirement({
             functionWithAdditionalParameter: requirement.functionWithAdditionalParameter,
             dummyValue: requirement.populateInTests.dummyValue,
@@ -160,7 +160,7 @@ export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
         const identifier = suitableParameterMatches[0];
         // these are locatable tree nodes, I can include a line number in the instruction! sourceLocation.lineFrom1
         logger.info("Found a call to %s inside a function called %s, with parameter %s",
-            requirement.functionWithAdditionalParameter, enclosingFunctionName, identifier.$value);
+            requirement.functionWithAdditionalParameter.name, enclosingFunctionName, identifier.$value);
 
         const instruction: PassArgumentRequirement = new PassArgumentRequirement({
             enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),
@@ -171,7 +171,7 @@ export function consequencesOfFunctionCall(requirement: AddParameterRequirement,
         return concomitantChange(instruction);
     } else {
         logger.info("Found a call to %s inside a function called %s, no suitable parameter",
-            requirement.functionWithAdditionalParameter, enclosingFunctionName);
+            requirement.functionWithAdditionalParameter.name, enclosingFunctionName);
 
         const passArgument: PassArgumentRequirement = new PassArgumentRequirement({
             enclosingFunction: functionCallIdentifierFromTreeNode(enclosingFunction),

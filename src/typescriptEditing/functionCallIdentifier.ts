@@ -37,12 +37,16 @@ export function isPublicFunctionAccess(scope: Access): scope is PublicFunctionAc
     return scope.kind === "PublicFunctionAccess";
 }
 
+export function isPublic(scope: Access): boolean {
+    return isPublicMethodAccess(scope) || isPublicFunctionAccess(scope);
+}
+
 export function isPrivateMethodAccess(scope: Access): scope is PrivateMethodAccess {
     return scope.kind === "PrivateMethodAccess";
 }
 
 export function globFromAccess(fci: FunctionCallIdentifier) {
-    if (isPublicFunctionAccess(fci.access)) {
+    if (isPublic(fci.access)) {
         return "**/*.ts";
     } else {
         return fci.filePath;

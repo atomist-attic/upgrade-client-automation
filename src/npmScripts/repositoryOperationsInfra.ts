@@ -26,7 +26,8 @@ export interface ProvenanceParameters {
     provenance: CommandInvocationProvenance;
 }
 
-export class MappedRepositoryTargetParameters extends BaseEditorOrReviewerParameters implements ProvenanceParameters {
+export class MappedRepositoryTargetParameters extends BaseEditorOrReviewerParameters
+    implements ProvenanceParameters {
     public provenance: CommandInvocationProvenance;
 
     constructor() {
