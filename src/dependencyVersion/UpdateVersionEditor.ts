@@ -52,7 +52,7 @@ export class UpgradeAutomationClientLibraryEditor implements HandleCommand<Mappe
             await project.commit(`upgrade @atomist/automation-client to ${newVersion}
 
 [atomist:${CommitMessageNotice}]`).catch(reportError("commit failed"));
-            await runMigrations(project, oldVersion, newVersion, clientBranch);
+            const migrationResults = await runMigrations(project, oldVersion, newVersion, clientBranch);
             await project.push().catch(reportError("push failed"));
             await project.raisePullRequest("Upgrade automation-client",
                 `[atomist:${CommitMessageNotice}]`).catch(reportError("pull request failed"));
@@ -156,7 +156,7 @@ function initialReport(context: HandlerContext, parameters: MappedRepositoryTarg
                        opts: { commandName: string }) {
     const attachment: slack.Attachment = {
         fallback: "report",
-        color: "#bb2510",
+        color: "#aacc99",
         fields: fields(["user", "channel", "owner", "repository"], [],
             {
                 user: slack.user(parameters.provenance.slackUserId),
