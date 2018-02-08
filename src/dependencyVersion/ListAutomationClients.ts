@@ -143,19 +143,21 @@ function toAttachment(targetVersion: string,
             "#bbaa00"
             : "#bb2030");
 
+    const actions = anyBranchHasTarget ? [] : [
+        buttonForCommand({ text: "Upgrade" },
+            UpgradeAutomationClientLibraryCommandName,
+            {
+                "targets.repo": acr.repo,
+                "targets.owner": acr.owner,
+            })];
+
     return {
         fallback: "an automation client",
         title: repoDescription,
         title_link: repoLink,
         color,
         text,
-        actions: [
-            buttonForCommand({ text: "Upgrade" },
-                UpgradeAutomationClientLibraryCommandName,
-                {
-                    "targets.repo": acr.repo,
-                    "targets.owner": acr.owner,
-                })]
+        actions
     }
 }
 
