@@ -134,9 +134,14 @@ function toAttachment(targetVersion: string,
     const repoLink = `${acr.provider.url}/${acr.owner}/${acr.repo}`;
     const text = acr.branches.sort(byAutomationClientVersionDecreasing)
         .map(b => toText(repoLink, b)).join("\n");
-    const defaultBranch = acr.branches.find(b => b.isDefault)
+    const defaultBranch = acr.branches.find(b => b.isDefault);
+    const anyBranchHasTarget =
+        !!acr.branches.find(b => b.automationClientVersion === targetVersion);
     const color = (defaultBranch && defaultBranch.automationClientVersion === targetVersion) ?
-        "#609930" : "#bb2030";
+        "#609930" :
+        (anyBranchHasTarget ?
+            "#bbaa00"
+            : "#bb2030");
 
     return {
         fallback: "an automation client",

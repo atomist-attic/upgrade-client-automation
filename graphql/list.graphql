@@ -10,7 +10,7 @@ query ListAutomationClients {
         }
         branches {
             name
-            pullRequests {
+            pullRequests(state: "open") {
                 number
                 state
             }
