@@ -9,6 +9,10 @@ import { EditResult } from "@atomist/automation-client/operations/edit/projectEd
 import * as _ from "lodash";
 import { GitProject } from "@atomist/automation-client/project/git/GitProject";
 import * as child_process from "child_process";
+import { NotAnAutomationClient } from "./FingerprintAutomationClientVersion";
+import { logger } from "@atomist/automation-client/internal/util/logger";
+import { Project } from "@atomist/automation-client/project/Project";
+import { runMigrations } from "./migrations";
 
 const CommitMessageNotice = "upgrade-automation-client-library";
 export const UpgradeAutomationClientLibraryCommandName = "UpgradeAutomationClientLibraryEditor";
@@ -32,19 +36,23 @@ export class UpgradeAutomationClientLibraryEditor implements HandleCommand<Mappe
         await context.messageClient.respond("OK. I'll make a PR.");
         const branchName = "jessitron/update-automation-client-library";
 
-        const newVersion = "0.6.5";
-          //  "https://atomist.jfrog.io/atomist/npm-dev/@atomist/automation-client/-/@atomist/automation-client-0.6.6-nortissej.add-context-to-clone.20180129195815.tgz";
+        const newVersion = "0.6.6";
+        const tmpVersion = "https://atomist.jfrog.io/atomist/npm-dev/@atomist/automation-client/-/@atomist/automation-client-0.6.6-nortissej.add-context-to-clone.20180129195815.tgz";
+        const clientBranch = "nortissej/add-context-to-clone";
         const project = await GitCommandGitProject.cloned(parameters.targets.credentials,
             parameters.targets.repoRef)
             .catch(reportError("Failed to clone"));
-        const editResult = await writeVersion(newVersion)(project, context)
+        const oldVersion = await determineOldVersion(project);
+        console.log("The old version is: " + oldVersion);
+        const editResult = await writeVersion(tmpVersion)(project, context)
             .catch(reportError("editor threw an exception"));
         if (editResult.success && editResult.edited) {
-        await npmInstall(project).catch(reportError("npm install failed"));
+            await npmInstall(project).catch(reportError("npm install failed"));
             await project.createBranch(branchName).catch(reportError("push failed"));
             await project.commit(`upgrade @atomist/automation-client to ${newVersion}
 
 [atomist:${CommitMessageNotice}]`).catch(reportError("commit failed"));
+            await runMigrations(project, oldVersion, newVersion, clientBranch);
             await project.push().catch(reportError("push failed"));
             await project.raisePullRequest("Upgrade automation-client",
                 `[atomist:${CommitMessageNotice}]`).catch(reportError("pull request failed"));
@@ -68,14 +76,14 @@ async function npmInstall(project: GitProject) {
     const cmd = "npm install";
     await new Promise((resolve, reject) => {
         child_process.exec(cmd,
-            {cwd: project.baseDir}, (error, stdout: string, stderr: string) => {
-            if (error) {
-                console.log(`stderr from ${cmd}: ${stderr}`);
-                reject("NPM install failed: " + error.message);
-            } else {
-                resolve(stdout);
-            }
-        });
+            { cwd: project.baseDir }, (error, stdout: string, stderr: string) => {
+                if (error) {
+                    console.log(`stderr from ${cmd}: ${stderr}`);
+                    reject("NPM install failed: " + error.message);
+                } else {
+                    resolve(stdout);
+                }
+            });
     });
     const packageLock = await project.findFile("package-lock.json");
     return project.add(packageLock)
@@ -88,6 +96,27 @@ function writeVersion(newVersion: string) {
     });
 }
 
+async function determineOldVersion(project: Project): Promise<string> {
+    const jpl = await project.findFile("package.json")
+        .then(f => f.getContent())
+        .catch(e => Promise.reject(new Error("package.json not found: " + e.message)));
+    let json;
+    try {
+        json = JSON.parse(jpl)
+    } catch (error) {
+        throw new Error("Could not parse package.json: " + error.message)
+    }
+
+    if (!json.dependencies) {
+        logger.warn("No dependencies member in package.json");
+        return NotAnAutomationClient;
+    }
+    if (json.dependencies["@atomist/automation-client"]) {
+        return json.dependencies["@atomist/automation-client"];
+    } else {
+        return NotAnAutomationClient;
+    }
+}
 
 function linkToCommit(parameters: MappedRepositoryTargetParameters, details: { sha?: string }): string {
     if (details.sha) {

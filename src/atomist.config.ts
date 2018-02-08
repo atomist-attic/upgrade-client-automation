@@ -20,7 +20,7 @@ import { BeginReleaseHandler } from "./prepareRelease/command";
 import { UpgradeTo0_5 } from "./typescriptEditing/command";
 import { updateNpmScripts } from "./npmScripts/command";
 import { findAutomationClientsCommand } from "./findAutomations/command";
-import { teamId } from "./credentials";
+import { GitHubToken, teamId } from "./credentials";
 import { FingerprintAutomationClientVersion } from "./dependencyVersion/FingerprintAutomationClientVersion";
 import { HelloWorld } from "./Hello";
 import { listAutomationClientsCommand } from "./dependencyVersion/ListAutomationClients";
@@ -28,8 +28,6 @@ import { UpgradeAutomationClientLibraryEditor } from "./dependencyVersion/Update
 
 // tslint:disable-next-line:no-var-requires
 const pj = require(`${appRoot.path}/package.json`);
-
-const token = process.env.GITHUB_TOKEN;
 
 export const configuration: Configuration = {
     name: pj.name,
@@ -48,7 +46,7 @@ export const configuration: Configuration = {
     events: [
         () => new FingerprintAutomationClientVersion()
     ],
-    token,
+    token: GitHubToken,
     http: {
         enabled: true,
         auth: {
